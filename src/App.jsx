@@ -23,7 +23,7 @@ import { seedDatabaseIfEmpty } from './core/db/schema';
 GoogleAuth.initialize({
   clientId: '813773523036-4vo5qijl8uvtdqsd83qb5c7c7j9hth0u.apps.googleusercontent.com',
   scopes: ['profile', 'email', 'https://www.googleapis.com/auth/drive.appdata'],
-  grantOfflineAccess: true,
+  grantOfflineAccess: Capacitor.isNativePlatform(),
 });
 
 /**
