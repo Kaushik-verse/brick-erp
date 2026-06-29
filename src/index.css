@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+html, body {
+  overscroll-behavior-y: none;
+  overflow-x: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: radial-gradient(120% 90% at 50% -10%, #2A1E14 0%, #15110D 45%, #0E0B08 100%);
+  color: #F2E9DD;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbars but keep scroll functional — native app feel */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Liquid glass surface — the base visual signature of the whole app */
+.glass-surface {
+  background: rgba(40, 32, 26, 0.45);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(242, 233, 221, 0.08);
+  box-shadow:
+    0 8px 32px -4px rgba(0,0,0,0.45),
+    inset 0 1px 0 0 rgba(255,255,255,0.06);
+}
+
+.glass-surface-light {
+  background: rgba(242, 233, 221, 0.06);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  border: 1px solid rgba(242, 233, 221, 0.10);
+}
+
+.ember-text-glow {
+  text-shadow: 0 0 18px rgba(242, 112, 61, 0.35);
+}
+
+/* Safe-area scaffolding for notches / camera pinholes / gesture bars.
+   These must NEVER be combined with a plain pt-N/pb-N Tailwind utility in
+   the same className list — Tailwind's generated utility order is not
+   source-order, so the two padding-top declarations fight and whichever
+   wins depends on build output, not intent. Use the dedicated combined
+   classes below instead when extra spacing on top of the safe-area inset
+   is needed. */
+.pt-safe { padding-top: max(env(safe-area-inset-top), 0px); }
+.pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
+.pl-safe { padding-left: max(env(safe-area-inset-left), 0px); }
+.pr-safe { padding-right: max(env(safe-area-inset-right), 0px); }
+
+/* Additive variants — safe-area inset PLUS a fixed extra gap, for content
+   that needs breathing room below the status bar/notch, not just to clear
+   it exactly. Used by ScreenHeader and ToastStack. */
+.pt-safe-header { padding-top: calc(max(env(safe-area-inset-top), 0px) + 1rem); }
+.pt-safe-loose { padding-top: calc(max(env(safe-area-inset-top), 0px) + 2.5rem); }
+.top-safe { top: max(env(safe-area-inset-top), 0px); }
+
+/* Numeric ledger figures — always tabular, always mono */
+.figure {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+input, select, textarea {
+  font-size: 16px; /* prevents iOS/Android auto-zoom on focus */
+}
+
+::selection {
+  background: rgba(242, 112, 61, 0.35);
+}

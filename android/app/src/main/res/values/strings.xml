@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Brick ERP</string>
+    <string name="title_activity_main">Brick ERP</string>
+    <string name="package_name">com.brickworks.erp</string>
+    <string name="custom_url_scheme">com.brickworks.erp</string>
+    <string name="server_client_id">813773523036-4vo5qijl8uvtdqsd83qb5c7c7j9hth0u.apps.googleusercontent.com</string>
+</resources>
