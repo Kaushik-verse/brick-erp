@@ -27,6 +27,24 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Summary Widget -->
+        <receiver android:name=".SummaryWidgetProvider" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/summary_widget_info" />
+        </receiver>
+
+        <!-- Dashboard Widget -->
+        <receiver android:name=".DashboardWidgetProvider" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/dashboard_widget_info" />
+        </receiver>
     </application>
 
     <!-- Permissions -->

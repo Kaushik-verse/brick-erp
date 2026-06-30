@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#15110D"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Dashboard Overview"
+        android:textColor="#A0A0A0"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textAllCaps="true"/>
+
+    <GridLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:columnCount="2"
+        android:rowCount="3">
+        
+        <LinearLayout android:orientation="vertical" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_marginBottom="12dp">
+            <TextView android:text="Sales" android:textColor="#808080" android:textSize="11sp"/>
+            <TextView android:id="@+id/val_sales" android:text="₹0" android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold"/>
+        </LinearLayout>
+        
+        <LinearLayout android:orientation="vertical" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_marginBottom="12dp">
+            <TextView android:text="Produced" android:textColor="#808080" android:textSize="11sp"/>
+            <TextView android:id="@+id/val_produced" android:text="0" android:textColor="#f59e0b" android:textSize="16sp" android:textStyle="bold"/>
+        </LinearLayout>
+
+        <LinearLayout android:orientation="vertical" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_marginBottom="12dp">
+            <TextView android:text="Receivables" android:textColor="#808080" android:textSize="11sp"/>
+            <TextView android:id="@+id/val_receivables" android:text="₹0" android:textColor="#ef4444" android:textSize="16sp" android:textStyle="bold"/>
+        </LinearLayout>
+
+        <LinearLayout android:orientation="vertical" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_marginBottom="12dp">
+            <TextView android:text="Payables" android:textColor="#808080" android:textSize="11sp"/>
+            <TextView android:id="@+id/val_payables" android:text="₹0" android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold"/>
+        </LinearLayout>
+        
+        <LinearLayout android:orientation="vertical" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1">
+            <TextView android:text="Stock Value" android:textColor="#808080" android:textSize="11sp"/>
+            <TextView android:id="@+id/val_stock" android:text="₹0" android:textColor="#f59e0b" android:textSize="16sp" android:textStyle="bold"/>
+        </LinearLayout>
+
+    </GridLayout>
+
+</LinearLayout>

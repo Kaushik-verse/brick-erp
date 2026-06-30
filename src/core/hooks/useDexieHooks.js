@@ -1,6 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
 import { calculateAgingDays } from '../db/ledgerEngine';
+import { registerPlugin, Capacitor } from '@capacitor/core';
+
+const WidgetPlugin = registerPlugin('WidgetPlugin');
 
 /** All customers, sorted by name. */
 export function useCustomers() {
@@ -148,7 +151,7 @@ export function useDashboardKPIs(rangeStart, rangeEnd) {
         .reduce((sum, p) => sum + p.amountPaid, 0) +
       supplierPayments.filter(p => p.paymentChannel === 'cash').reduce((sum, p) => sum + p.amount, 0);
 
-    return {
+    const kpiData = {
       totalSales,
       totalCollected,
       totalPurchases,
@@ -166,5 +169,11 @@ export function useDashboardKPIs(rangeStart, rangeEnd) {
       salesCount: sales.length,
       productionRuns: production.length,
     };
+
+    if (Capacitor.isNativePlatform()) {
+      WidgetPlugin.syncKpis({ data: JSON.stringify(kpiData) }).catch(console.error);
+    }
+
+    return kpiData;
   }, [rangeStart, rangeEnd], null);
 }
