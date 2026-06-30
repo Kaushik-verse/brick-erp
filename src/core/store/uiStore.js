@@ -15,6 +15,9 @@ export const useUIStore = create((set, get) => ({
   openSheet: (sheetKey, context = null) => set({ activeSheet: sheetKey, sheetContext: context }),
   closeSheet: () => set({ activeSheet: null, sheetContext: null }),
 
+  invoiceBuilderData: null,
+  setInvoiceBuilderData: (data) => set({ invoiceBuilderData: data }),
+
   toasts: [],
   pushToast: (message, tone = 'success') => {
     const id = Date.now() + Math.random();

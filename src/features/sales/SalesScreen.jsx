@@ -5,12 +5,14 @@ import GlassCard from '../../core/ui/GlassCard';
 import GlassButton from '../../core/ui/GlassButton';
 import { GlassInput } from '../../core/ui/GlassFormControls';
 import CustomerLedgerSheet from './CustomerLedgerSheet';
+import AddSaleSheet from './AddSaleSheet';
 import { useCustomers, useSalesLog } from '../../core/hooks/useDexieHooks';
 import { formatINR } from '../../core/utils/format';
 import { buildOutstandingReminderLink, openWhatsAppLink } from '../../core/utils/whatsapp';
 import { useUIStore } from '../../core/store/uiStore';
 
 export default function SalesScreen({ onNavigate }) {
+  const [addSaleOpen, setAddSaleOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const [search, setSearch] = useState('');
   const customers = useCustomers();
@@ -48,7 +50,7 @@ export default function SalesScreen({ onNavigate }) {
         eyebrow="Receivables"
         title="Sales & Customers"
         action={
-          <GlassButton size="sm" icon={Plus} onClick={() => onNavigate('invoice-builder')}>
+          <GlassButton size="sm" icon={Plus} onClick={() => setAddSaleOpen(true)}>
             Sale
           </GlassButton>
         }
@@ -127,7 +129,11 @@ export default function SalesScreen({ onNavigate }) {
         open={!!selectedCustomerId}
         onClose={() => setSelectedCustomerId(null)}
         customerId={selectedCustomerId}
+        onNavigate={onNavigate}
       />
+      {addSaleOpen && (
+        <AddSaleSheet open={addSaleOpen} onClose={() => setAddSaleOpen(false)} />
+      )}
     </div>
   );
 }

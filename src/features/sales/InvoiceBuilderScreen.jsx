@@ -3,47 +3,60 @@ import { ArrowLeft, Plus, Trash2, Save, Send, Printer, UserPlus } from 'lucide-r
 import { db } from '../../core/db/schema';
 import { useCustomers, useFinishedStock, useInvoiceSettings } from '../../core/hooks/useDexieHooks';
 import { useUIStore } from '../../core/store/uiStore';
-import { todayISO, formatINR } from '../../core/utils/format';
+import { todayISO } from '../../core/utils/format';
 import { generateInvoicePDF } from '../documents/pdfExport';
 import { hapticTap, saveAndShareBlob } from '../../core/utils/nativeFileBridge';
 import { openWhatsAppLink } from '../../core/utils/whatsapp';
+import { recordSale } from '../../core/db/ledgerEngine';
+import { Capacitor } from '@capacitor/core';
 
-export default function InvoiceBuilderScreen({ onBack, prefillCustomer = null }) {
+export default function InvoiceBuilderScreen({ onBack }) {
   const pushToast = useUIStore(s => s.pushToast);
+  const invoiceBuilderData = useUIStore(s => s.invoiceBuilderData);
+  const setInvoiceBuilderData = useUIStore(s => s.setInvoiceBuilderData);
+  
   const customers = useCustomers();
   const finishedStock = useFinishedStock();
   const settings = useInvoiceSettings();
 
-  // ----- INVOICE STATE -----
-  const [date, setDate] = useState(todayISO());
-  const [customerId, setCustomerId] = useState(prefillCustomer || '');
-  const [showNewCustomer, setShowNewCustomer] = useState(false);
-  const [newCustomerName, setNewCustomerName] = useState('');
-  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const isExisting = !!invoiceBuilderData;
+
+  // Invoice Meta
+  const [invNum, setInvNum] = useState(invoiceBuilderData?.invoice?.invoiceNumber || `INV-${todayISO().replace(/-/g, '')}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`);
+  const [date, setDate] = useState(invoiceBuilderData?.invoice?.date ? invoiceBuilderData.invoice.date.substring(0, 10) : todayISO());
   
+  // Customer Details
+  const [selectedCustomerId, setSelectedCustomerId] = useState(invoiceBuilderData?.customer?.id || '');
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState(invoiceBuilderData?.customer?.name || '');
+  const [newCustomerPhone, setNewCustomerPhone] = useState(invoiceBuilderData?.customer?.phone || '');
+
+  // Vehicle Details
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [driverName, setDriverName] = useState('');
   const [salesPerson, setSalesPerson] = useState('');
   const [remarks, setRemarks] = useState('');
 
-  // Dynamic Products Table
-  const [items, setItems] = useState([
-    { id: Date.now().toString(), description: '', quantity: '', rate: '', amount: 0 }
-  ]);
+  // Products
+  const [items, setItems] = useState(
+    invoiceBuilderData?.items?.length 
+      ? invoiceBuilderData.items.map(it => ({ id: Math.random().toString(), description: it.description, quantity: it.quantity, rate: it.rate, amount: it.amount }))
+      : [{ id: '1', description: '', quantity: '', rate: '', amount: 0 }]
+  );
 
-  // Charges
-  const [transport, setTransport] = useState('');
-  const [loading, setLoading] = useState('');
-  const [unloading, setUnloading] = useState('');
-  const [otherCharges, setOtherCharges] = useState('');
+  // Extras
+  const [transport, setTransport] = useState(invoiceBuilderData?.summary?.transportCharges ? String(invoiceBuilderData.summary.transportCharges) : '');
+  const [loading, setLoading] = useState(invoiceBuilderData?.summary?.loadingCharges ? String(invoiceBuilderData.summary.loadingCharges) : '');
+  const [unloading, setUnloading] = useState(invoiceBuilderData?.summary?.unloadingCharges ? String(invoiceBuilderData.summary.unloadingCharges) : '');
+  const [otherCharges, setOtherCharges] = useState(invoiceBuilderData?.summary?.otherCharges ? String(invoiceBuilderData.summary.otherCharges) : '');
   
   // Discount & GST
-  const [discountType, setDiscountType] = useState('flat'); // flat, percent
-  const [discountValue, setDiscountValue] = useState('');
+  const [discountType, setDiscountType] = useState('flat');
+  const [discountValue, setDiscountValue] = useState(invoiceBuilderData?.summary?.discount ? String(invoiceBuilderData.summary.discount) : '');
   const [gstPercent, setGstPercent] = useState('');
 
   // Payment
-  const [amountPaid, setAmountPaid] = useState('');
+  const [amountPaid, setAmountPaid] = useState(invoiceBuilderData?.summary?.amountPaid ? String(invoiceBuilderData.summary.amountPaid) : '');
   const [paymentChannel, setPaymentChannel] = useState('cash');
 
   const [saving, setSaving] = useState(false);
@@ -53,12 +66,14 @@ export default function InvoiceBuilderScreen({ onBack, prefillCustomer = null })
   const discVal = Number(discountValue) || 0;
   const discountAmount = discountType === 'percent' ? (subtotal * discVal) / 100 : discVal;
   
-  const extraCharges = (Number(transport) || 0) + (Number(loading) || 0) + (Number(unloading) || 0) + (Number(otherCharges) || 0);
-  const taxableAmount = subtotal - discountAmount + extraCharges;
+  const transportCharges = Number(transport) || 0;
+  const loadingCharges = Number(loading) || 0;
+  const unloadingCharges = Number(unloading) || 0;
+  const otherChargesVal = Number(otherCharges) || 0;
   
+  const taxableAmount = subtotal - discountAmount + transportCharges + loadingCharges + unloadingCharges + otherChargesVal;
   const gstAmount = (taxableAmount * (Number(gstPercent) || 0)) / 100;
   const grandTotal = taxableAmount + gstAmount;
-  
   const paid = Number(amountPaid) || 0;
   const balanceDue = grandTotal - paid;
   
@@ -67,29 +82,13 @@ export default function InvoiceBuilderScreen({ onBack, prefillCustomer = null })
   if (paid >= grandTotal && grandTotal > 0) paymentStatus = 'paid';
 
   // ----- HANDLERS -----
-  const handleAddItem = () => {
-    setItems([...items, { id: Date.now().toString(), description: '', quantity: '', rate: '', amount: 0 }]);
-  };
-
-  const handleRemoveItem = (id) => {
-    if (items.length === 1) return;
-    setItems(items.filter(it => it.id !== id));
-  };
+  const handleAddItem = () => setItems([...items, { id: Date.now().toString(), description: '', quantity: '', rate: '', amount: 0 }]);
+  const handleRemoveItem = (id) => items.length > 1 && setItems(items.filter(it => it.id !== id));
 
   const updateItem = (id, field, value) => {
     setItems(prev => prev.map(it => {
       if (it.id !== id) return it;
       const updated = { ...it, [field]: value };
-      
-      // Auto-fill rate if selecting a product
-      if (field === 'description' && finishedStock) {
-        const stock = finishedStock.find(s => s.brickSize === value);
-        if (stock) {
-          updated.rate = String(stock.sellingPrice || '');
-        }
-      }
-
-      // Auto-calc amount
       const q = Number(updated.quantity) || 0;
       const r = Number(updated.rate) || 0;
       updated.amount = q * r;
@@ -97,110 +96,39 @@ export default function InvoiceBuilderScreen({ onBack, prefillCustomer = null })
     }));
   };
 
-  const handleCreateCustomer = async () => {
-    if (!newCustomerName.trim()) return;
-    const id = await db.customers.add({
-      name: newCustomerName.trim(),
-      phone: newCustomerPhone.trim(),
-      outstandingBalance: 0,
-      createdAt: new Date().toISOString(),
-    });
-    setCustomerId(id);
-    setShowNewCustomer(false);
-  };
-
-  const generateInvNum = async () => {
-    // Generate a simple auto-incrementing invoice number based on today's sales count
-    const today = new Date().toISOString().slice(0, 10);
-    const count = await db.salesLog.where('date').equals(today).count();
-    return `INV-${today.replace(/-/g, '')}-${String(count + 1).padStart(3, '0')}`;
-  };
-
-  const handleSaveInvoice = async (andPrint = false, andShare = false) => {
-    if (!customerId) { pushToast('Please select a customer', 'error'); return; }
-    if (items.some(i => !i.description || !i.quantity || !i.rate)) {
-      pushToast('Please complete all product rows', 'error'); return;
-    }
-
+  const handleSaveInvoice = async (andShare = false) => {
+    if (!selectedCustomerId && !newCustomerName) { pushToast('Select or create customer', 'error'); return; }
     setSaving(true);
     try {
-      const invNum = await generateInvNum();
-      
-      // Create a sale record
-      // Note: We use the existing recordSale function but we must pass multiple items
-      // The current ledgerEngine deducts stock for single items.
-      // For this upgrade, we will update ledgerEngine later. For now, we save it.
-      
-      const payload = {
-        invoiceNumber: invNum,
-        date,
-        customerId: Number(customerId),
-        items: items.map(i => ({
-          description: i.description,
-          quantity: Number(i.quantity) || 0,
-          rate: Number(i.rate) || 0,
-          amount: Number(i.amount) || 0
-        })),
-        subtotal,
-        discount: discountAmount,
-        discountType,
-        transportCharges: Number(transport) || 0,
-        loadingCharges: Number(loading) || 0,
-        unloadingCharges: Number(unloading) || 0,
-        otherCharges: Number(otherCharges) || 0,
-        cgst: gstAmount / 2,
-        sgst: gstAmount / 2,
-        igst: 0,
-        totalAmount: grandTotal,
-        amountPaid: paid,
-        balanceDue,
-        paymentStatus,
-        paymentChannel,
-        vehicleNumber,
-        driverName,
-        salesPerson,
-        remarks,
-        createdAt: new Date().toISOString()
-      };
-
-      const saleId = await db.salesLog.add(payload);
-      
-      // Update customer balance manually since we bypassed recordSale
-      const cust = await db.customers.get(Number(customerId));
-      if (cust && balanceDue > 0) {
-        await db.customers.update(cust.id, { outstandingBalance: (cust.outstandingBalance || 0) + balanceDue });
+      let newCustId = selectedCustomerId;
+      if (newCustomerName && !selectedCustomerId) {
+        newCustId = await db.customers.add({ name: newCustomerName, phone: newCustomerPhone, outstandingBalance: 0, createdAt: new Date().toISOString() });
       }
 
-      // Deduct stock for items that match finishedStock
-      for (const item of payload.items) {
-        const stockRow = await db.finishedStock.where('brickSize').equals(item.description).first();
-        if (stockRow) {
-          await db.finishedStock.update(stockRow.id, {
-            currentStock: (stockRow.currentStock || 0) - item.quantity
-          });
-        }
+      const cleanItems = items.map(i => ({ description: i.description, quantity: Number(i.quantity), rate: Number(i.rate), amount: Number(i.amount) }));
+      const cust = await db.customers.get(Number(newCustId));
+      
+      if (!isExisting) {
+        await recordSale({
+          date, customerId: Number(newCustId),
+          invoiceNumber: invNum,
+          items: cleanItems,
+          totalAmount: grandTotal,
+          amountPaid: paid,
+          paymentChannel,
+          balanceDue, paymentStatus
+        });
       }
 
       await hapticTap();
-      pushToast('Invoice saved successfully', 'success');
-
-      // Setup payload for PDF/Share
       const factorySettings = {};
       const s = await db.settings.toArray();
       s.forEach(x => factorySettings[x.key] = x.value);
       
       const invoiceData = {
         invoice: { invoiceNumber: invNum, date },
-        items: payload.items,
-        summary: {
-          subtotal, discount: discountAmount,
-          transportCharges: payload.transportCharges,
-          loadingCharges: payload.loadingCharges,
-          unloadingCharges: payload.unloadingCharges,
-          otherCharges: payload.otherCharges,
-          cgst: payload.cgst, sgst: payload.sgst, igst: 0,
-          grandTotal, amountPaid: paid, balanceDue, paymentStatus
-        },
+        items: cleanItems,
+        summary: { subtotal, discount: discountAmount, transportCharges, loadingCharges, unloadingCharges, otherCharges: otherChargesVal, cgst: gstAmount/2, sgst: gstAmount/2, grandTotal, amountPaid: paid, balanceDue, paymentStatus },
         customer: cust || { name: newCustomerName },
         vehicle: { vehicleNumber, driverName, salesPerson },
         factory: factorySettings,
@@ -242,6 +170,7 @@ export default function InvoiceBuilderScreen({ onBack, prefillCustomer = null })
         }
       }
 
+      setInvoiceBuilderData(null);
       onBack();
 
     } catch (e) {
@@ -484,14 +413,16 @@ export default function InvoiceBuilderScreen({ onBack, prefillCustomer = null })
 
       {/* FAB Footer */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 flex gap-3 z-20">
-        <button onClick={() => handleSaveInvoice(false, false)} disabled={saving} className="flex-1 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors">
-          <Save size={18}/> {saving ? 'Saving...' : 'Save Only'}
-        </button>
+        {!isExisting && (
+          <button onClick={() => handleSaveInvoice(false, false)} disabled={saving} className="flex-1 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors">
+            <Save size={18}/> {saving ? 'Saving...' : 'Save Only'}
+          </button>
+        )}
         <button onClick={() => handleSaveInvoice(true, false)} disabled={saving} className="flex-1 bg-slate-800 hover:bg-slate-900 active:bg-black text-white h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors">
-          <Printer size={18}/> Save & Print
+          <Printer size={18}/> {isExisting ? 'Print PDF' : 'Save & Print'}
         </button>
         <button onClick={() => handleSaveInvoice(false, true)} disabled={saving} className="flex-1 bg-[#25D366] hover:bg-[#1DA851] active:bg-[#168840] text-white h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors">
-          <Send size={18}/> Save & Share
+          <Send size={18}/> {isExisting ? 'Share PDF' : 'Save & Share'}
         </button>
       </div>
 

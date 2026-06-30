@@ -11,10 +11,11 @@ import { buildOutstandingReminderLink, openWhatsAppLink } from '../../core/utils
 import { saveAndShareBlob } from '../../core/utils/nativeFileBridge';
 import { useUIStore } from '../../core/store/uiStore';
 import AddCollectionSheet from './AddCollectionSheet';
-import { generateInvoicePDF, generateStatementPDF } from '../documents/pdfExport';
+import { generateStatementPDF } from '../documents/pdfExport';
 
-export default function CustomerLedgerSheet({ open, onClose, customerId }) {
+export default function CustomerLedgerSheet({ open, onClose, customerId, onNavigate }) {
   const pushToast = useUIStore((s) => s.pushToast);
+  const setInvoiceBuilderData = useUIStore((s) => s.setInvoiceBuilderData);
   const [sending, setSending] = useState(false);
   const [showAddCollection, setShowAddCollection] = useState(false);
 
@@ -134,18 +135,20 @@ export default function CustomerLedgerSheet({ open, onClose, customerId }) {
          paymentChannel: 'mixed'
       };
 
-      const blob = generateInvoicePDF({
-        invoice: invoiceData,
-        items,
-        summary: summaryData,
-        customer,
-        factory,
+      setInvoiceBuilderData({
+         invoice: invoiceData,
+         items,
+         summary: summaryData,
+         customer,
       });
 
-      await saveAndShareBlob(blob, `${customer.name}_invoice.pdf`, 'application/pdf');
-      pushToast('Invoice generated successfully', 'success');
+      onClose();
+      if (onNavigate) {
+         onNavigate('invoice-builder');
+      }
+
     } catch (e) {
-      pushToast('Could not generate invoice', 'error');
+      pushToast('Could not open invoice builder', 'error');
     } finally {
       setSending(false);
     }
