@@ -14,6 +14,7 @@ export default function InvoiceSettingsScreen({ onBack }) {
   const [localSettings, setLocalSettings] = useState({});
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef(null);
+  const signatureInputRef = useRef(null);
 
   useEffect(() => {
     if (settingsMap && Object.keys(settingsMap).length > 0) {
@@ -42,6 +43,25 @@ export default function InvoiceSettingsScreen({ onBack }) {
       setLocalSettings(prev => ({
         ...prev,
         qrCodeImage: reader.result
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSignatureUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      pushToast('Image size must be less than 2MB', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setLocalSettings(prev => ({
+        ...prev,
+        signatureImage: reader.result
       }));
     };
     reader.readAsDataURL(file);
@@ -116,10 +136,49 @@ export default function InvoiceSettingsScreen({ onBack }) {
           <ToggleRow label="Vehicle Number" settingKey="showVehicleNumber" />
           <ToggleRow label="Sales Person" settingKey="showSalesPerson" />
           <ToggleRow label="Bank Details" settingKey="showBankDetails" />
-          <ToggleRow label="Customer Signature Line" settingKey="showCustomerSignature" />
-          <ToggleRow label="Company Signature Line" settingKey="showCompanySignature" />
           <ToggleRow label="Terms & Conditions" settingKey="showTerms" />
           <ToggleRow label="Business Description" settingKey="showBusinessDescription" />
+        </GlassCard>
+
+        <GlassCard padding="p-4">
+          <h3 className="text-xs font-bold text-clay-400 uppercase tracking-wider mb-2">Authorized Signature</h3>
+          <ToggleRow label="Show Company Signature" settingKey="showCompanySignature" />
+          
+          {localSettings['showCompanySignature'] === '1' && (
+            <div className="mt-4 p-4 border border-dashed border-glass-border rounded-xl flex flex-col items-center justify-center gap-3">
+              {localSettings['signatureImage'] ? (
+                <>
+                  <img src={localSettings['signatureImage']} alt="Signature" className="h-16 object-contain rounded-lg bg-white p-2" />
+                  <button 
+                    onClick={() => setLocalSettings(prev => ({...prev, signatureImage: ''}))}
+                    className="text-xs text-ledger-overdue flex items-center gap-1"
+                  >
+                    <Trash2 size={12}/> Remove Signature
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="w-12 h-12 rounded-full bg-glass-panel flex items-center justify-center text-clay-400">
+                    <Upload size={20} />
+                  </div>
+                  <p className="text-xs text-clay-300 text-center">Upload Authorized Signature (transparent PNG recommended)</p>
+                  <button 
+                    onClick={() => signatureInputRef.current?.click()}
+                    className="text-xs font-semibold text-ember-400 px-3 py-1.5 rounded-lg bg-glass-panel"
+                  >
+                    Select Image
+                  </button>
+                  <input 
+                    type="file" 
+                    ref={signatureInputRef} 
+                    className="hidden" 
+                    accept="image/*"
+                    onChange={handleSignatureUpload}
+                  />
+                </>
+              )}
+            </div>
+          )}
         </GlassCard>
 
         <GlassCard padding="p-4">

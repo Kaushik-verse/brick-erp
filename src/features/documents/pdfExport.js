@@ -336,7 +336,8 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
   // QR Code Image
   if (settings?.showQRCode !== '0' && settings?.qrCodeImage) {
     try {
-      doc.addImage(settings.qrCodeImage, 'JPEG', 15, leftY, 35, 35);
+      const qrFormat = settings.qrCodeImage.substring(11, settings.qrCodeImage.indexOf(';')).toUpperCase();
+      doc.addImage(settings.qrCodeImage, qrFormat, 15, leftY, 35, 35);
       doc.setFontSize(8);
       doc.setTextColor(...GRAY);
       doc.text('Scan to Pay', 32.5, leftY + 39, { align: 'center' });
@@ -361,21 +362,23 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
   }
 
   if (settings?.showCompanySignature !== '0') {
+    if (settings?.signatureImage) {
+      try {
+        const sigFormat = settings.signatureImage.substring(11, settings.signatureImage.indexOf(';')).toUpperCase();
+        doc.addImage(settings.signatureImage, sigFormat, 160, footY - 10, 35, 15);
+      } catch (e) {
+        console.warn('Failed to embed signature image', e);
+      }
+    }
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(...DARK);
-    doc.text(`For ${factory.factoryName || 'Company'}`, 195, footY, { align: 'right' });
+    doc.text(`For ${factory.factoryName || 'Company'}`, 195, footY + 8, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...GRAY);
     doc.text('Authorized Signatory', 195, footY + 15, { align: 'right' });
-  }
-  
-  if (settings?.showCustomerSignature !== '0') {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...DARK);
-    doc.text('Customer Signature', 100, footY + 15, { align: 'center' });
   }
 
   return doc.output('blob');
