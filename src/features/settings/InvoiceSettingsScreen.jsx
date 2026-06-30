@@ -126,14 +126,12 @@ export default function InvoiceSettingsScreen({ onBack }) {
 
         <GlassCard padding="p-4">
           <h3 className="text-xs font-bold text-clay-400 uppercase tracking-wider mb-2">Calculations</h3>
-          <ToggleRow label="Discounts" settingKey="showDiscount" description="Enable % or flat discounts" />
         </GlassCard>
 
         <GlassCard padding="p-4">
           <h3 className="text-xs font-bold text-clay-400 uppercase tracking-wider mb-2">Header & Footer Fields</h3>
           <ToggleRow label="Driver Name" settingKey="showDriverName" />
           <ToggleRow label="Vehicle Number" settingKey="showVehicleNumber" />
-          <ToggleRow label="Sales Person" settingKey="showSalesPerson" />
           <ToggleRow label="Bank Details" settingKey="showBankDetails" />
           <ToggleRow label="Terms & Conditions" settingKey="showTerms" />
           <ToggleRow label="Business Description" settingKey="showBusinessDescription" />

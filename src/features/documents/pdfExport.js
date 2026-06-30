@@ -220,7 +220,6 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
   // Vehicle / Additional info (Right)
   const hasDeliveryDetails = (settings?.showVehicleNumber !== '0' && vehicle?.vehicleNumber) || 
                              (settings?.showDriverName !== '0' && vehicle?.driverName) || 
-                             (settings?.showSalesPerson !== '0' && vehicle?.salesPerson) || 
                              customer?.address;
                              
   if (hasDeliveryDetails) {
@@ -234,7 +233,7 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
     let vy = y + 5;
     if (settings?.showVehicleNumber !== '0' && vehicle?.vehicleNumber) { doc.text(`Vehicle: ${vehicle.vehicleNumber}`, marginLeft + 105, vy); vy += 4.5; }
     if (settings?.showDriverName !== '0' && vehicle?.driverName) { doc.text(`Driver: ${vehicle.driverName}`, marginLeft + 105, vy); vy += 4.5; }
-    if (settings?.showSalesPerson !== '0' && vehicle?.salesPerson) { doc.text(`Sales: ${vehicle.salesPerson}`, marginLeft + 105, vy); vy += 4.5; }
+
     if (customer?.address) { doc.text(`Destination: ${customer.address}`, marginLeft + 105, vy); vy += 4.5; }
   }
 
@@ -307,9 +306,7 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
   
   drawRow('Subtotal', pdfCurrency(stotal));
   
-  if (settings?.showDiscount !== '0' && summary.discount) {
-    drawRow('Discount', `-${pdfCurrency(summary.discount)}`, false, true);
-  }
+
   
   if (settings?.showTransport !== '0' && summary.transportCharges) drawRow('Transport Charges', pdfCurrency(summary.transportCharges));
   if (settings?.showLoading !== '0' && summary.loadingCharges) drawRow('Loading Charges', pdfCurrency(summary.loadingCharges));

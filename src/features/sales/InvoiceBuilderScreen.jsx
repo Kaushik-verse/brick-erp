@@ -36,9 +36,6 @@ export default function InvoiceBuilderScreen({ onBack }) {
   const [newCustomerName, setNewCustomerName] = useState(invoiceBuilderData?.customer?.name || '');
   const [newCustomerPhone, setNewCustomerPhone] = useState(invoiceBuilderData?.customer?.phone || '');
 
-  // Vehicle Details
-  const [vehicleNumber, setVehicleNumber] = useState('');
-  const [discountPercent, setDiscountPercent] = useState('');
   const [remarks, setRemarks] = useState('');
 
   // Products
@@ -54,10 +51,6 @@ export default function InvoiceBuilderScreen({ onBack }) {
   const [unloading, setUnloading] = useState(invoiceBuilderData?.summary?.unloadingCharges ? String(invoiceBuilderData.summary.unloadingCharges) : '');
   const [otherCharges, setOtherCharges] = useState(invoiceBuilderData?.summary?.otherCharges ? String(invoiceBuilderData.summary.otherCharges) : '');
   
-  // Discount & GST
-  const [discountType, setDiscountType] = useState('flat');
-  const [discountValue, setDiscountValue] = useState(invoiceBuilderData?.summary?.discount ? String(invoiceBuilderData.summary.discount) : '');
-
   // Payment
   const [amountPaid, setAmountPaid] = useState(invoiceBuilderData?.summary?.amountPaid ? String(invoiceBuilderData.summary.amountPaid) : '');
   const [paymentChannel, setPaymentChannel] = useState('cash');
@@ -66,16 +59,12 @@ export default function InvoiceBuilderScreen({ onBack }) {
 
   // ----- CALCULATIONS -----
   const subtotal = items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
-  const discVal = Number(discountValue) || 0;
-  const discountAmount = discountType === 'percent' ? (subtotal * discVal) / 100 : discVal;
-  
   const transportCharges = Number(transport) || 0;
   const loadingCharges = Number(loading) || 0;
   const unloadingCharges = Number(unloading) || 0;
   const otherChargesVal = Number(otherCharges) || 0;
   
-  const taxableAmount = subtotal - discountAmount + transportCharges + loadingCharges + unloadingCharges + otherChargesVal;
-  
+  const taxableAmount = subtotal + transportCharges + loadingCharges + unloadingCharges + otherChargesVal;
   const grandTotal = taxableAmount;
   const paid = Number(amountPaid) || 0;
   const balanceDue = grandTotal - paid;
@@ -137,7 +126,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
       const invoiceData = {
         invoice: { invoiceNumber: invNum, date },
         items: cleanItems,
-        summary: { subtotal, discount: discountAmount, transportCharges, loadingCharges, unloadingCharges, otherCharges: otherChargesVal, grandTotal, amountPaid: paid, balanceDue, paymentStatus },
+        summary: { subtotal, transportCharges, loadingCharges, unloadingCharges, otherCharges: otherChargesVal, grandTotal, amountPaid: paid, balanceDue, paymentStatus },
         customer: cust || { name: newCustomerName },
         vehicle: { vehicleNumber },
         factory: factorySettings,
@@ -326,15 +315,6 @@ Regards,
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-500 font-medium">Subtotal</span>
                 <span className="font-bold text-slate-800">₹{subtotal.toLocaleString()}</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Select value={discountType} onChange={e=>setDiscountType(e.target.value)} className="!py-1 !text-xs w-28 !bg-slate-50">
-                  <option value="flat">Flat ₹</option>
-                  <option value="percent">Percent %</option>
-                </Select>
-                <Input type="number" value={discountValue} onChange={e=>setDiscountValue(e.target.value)} placeholder="Discount" className="!py-1 !text-xs text-right"/>
-                <span className="text-sm font-bold text-green-600 min-w-[80px] text-right">-{discountAmount.toLocaleString()}</span>
               </div>
 
               <div className="flex justify-between items-center gap-2">

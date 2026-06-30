@@ -1,23 +1,22 @@
 import { AlertTriangle, ChevronRight } from 'lucide-react';
 import GlassCard from '../../core/ui/GlassCard';
 import { formatINR } from '../../core/utils/format';
-import { useOutstandingSales } from '../../core/hooks/useDexieHooks';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '../../core/db/schema';
 
 /**
- * AgingAlertsWidget
+ * TopOutstandingWidget
  * -------------------
- * Surfaces the most critical aging receivables (60+ / 31-60 days) right
- * on the dashboard so the owner can't miss them. Tapping a row jumps
- * into the Sales tab pre-filtered (handled by parent via onSelectCustomer).
+ * Surfaces the customers with the highest outstanding balances
+ * right on the dashboard so the owner can't miss them.
  */
 export default function AgingAlertsWidget({ onSelectCustomer }) {
-  const outstandingSales = useOutstandingSales();
+  const critical = useLiveQuery(async () => {
+    const customers = await db.customers.where('outstandingBalance').above(0).toArray();
+    return customers.sort((a, b) => b.outstandingBalance - a.outstandingBalance).slice(0, 4);
+  });
 
-  const critical = (outstandingSales || [])
-    .filter((s) => s.agingDays > 30)
-    .slice(0, 4);
-
-  if (!outstandingSales) return null;
+  if (!critical) return null;
 
   if (critical.length === 0) {
     return (
@@ -34,26 +33,32 @@ export default function AgingAlertsWidget({ onSelectCustomer }) {
     <GlassCard padding="p-4">
       <div className="flex items-center gap-2 mb-3">
         <AlertTriangle size={16} className="text-ledger-overdue" />
-        <h3 className="text-sm font-semibold text-clay-100">Aging Alerts</h3>
+        <h3 className="text-sm font-semibold text-clay-100">Top Outstanding Balances</h3>
       </div>
       <div className="flex flex-col divide-y divide-white/5">
-        {critical.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => onSelectCustomer?.(s.customerId)}
-            className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0 touch-manipulation"
+        {critical.map((c) => (
+          <div
+            key={c.id}
+            className="py-3 flex justify-between items-center active:bg-white/5 cursor-pointer rounded-lg px-2 -mx-2 transition-colors"
+            onClick={() => onSelectCustomer && onSelectCustomer(c.id)}
           >
-            <div className="text-left min-w-0">
-              <p className="text-sm font-medium text-clay-100 truncate">{s.customerName}</p>
-              <p className="text-xs text-ledger-overdue font-semibold">{s.agingDays} days overdue</p>
+            <div>
+              <p className="text-sm font-bold text-white truncate max-w-[150px]">
+                {c.name}
+              </p>
+              <p className="text-[11px] text-clay-400 mt-0.5 font-medium">
+                {c.phone || 'No phone'}
+              </p>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="figure text-sm font-bold text-clay-50">
-                {formatINR(s.balanceDue)}
-              </span>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-sm font-bold text-ledger-overdue">
+                  ₹{c.outstandingBalance.toLocaleString()}
+                </p>
+              </div>
               <ChevronRight size={16} className="text-clay-500" />
             </div>
-          </button>
+          </div>
         ))}
       </div>
     </GlassCard>
