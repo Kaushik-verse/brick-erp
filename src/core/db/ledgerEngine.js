@@ -31,31 +31,63 @@ export async function recordSale({
   brickSize,
   quantity,
   rate,
+  items, // array of { description, quantity, rate, amount }
+  totalAmount: providedTotalAmount,
   amountPaid,
   paymentChannel, // 'cash' | 'bank'
+  invoiceNumber,
+  balanceDue: providedBalanceDue,
+  paymentStatus: providedPaymentStatus,
 }) {
   if (!customerId) throw new Error('A customer must be selected.');
-  if (!quantity || quantity <= 0) throw new Error('Quantity must be greater than zero.');
+  
+  const isMultiItem = items && Array.isArray(items) && items.length > 0;
+  if (!isMultiItem && (!quantity || quantity <= 0)) {
+    throw new Error('Quantity must be greater than zero.');
+  }
 
-  const totalAmount = round2(quantity * rate);
+  let totalAmount = providedTotalAmount;
+  if (totalAmount === undefined) {
+    if (isMultiItem) {
+      totalAmount = round2(items.reduce((sum, it) => sum + (it.amount || (it.quantity * it.rate)), 0));
+    } else {
+      totalAmount = round2(quantity * rate);
+    }
+  }
+
   const paid = round2(amountPaid || 0);
-  const balanceDue = round2(totalAmount - paid);
-  const paymentStatus = derivePaymentStatus(totalAmount, paid);
+  const balanceDue = providedBalanceDue !== undefined ? providedBalanceDue : round2(totalAmount - paid);
+  const paymentStatus = providedPaymentStatus !== undefined ? providedPaymentStatus : derivePaymentStatus(totalAmount, paid);
 
   return db.transaction('rw', db.finishedStock, db.salesLog, db.customers, async () => {
-    const stockRow = await db.finishedStock.where('brickSize').equals(brickSize).first();
-    if (stockRow) {
-      await db.finishedStock.update(stockRow.id, {
-        currentStock: round2(stockRow.currentStock - quantity),
-      });
+    // Deduct stock
+    if (isMultiItem) {
+      for (const item of items) {
+        if (!item.description || !item.quantity) continue;
+        const stockRow = await db.finishedStock.where('brickSize').equals(item.description).first();
+        if (stockRow) {
+          await db.finishedStock.update(stockRow.id, {
+            currentStock: round2(stockRow.currentStock - item.quantity),
+          });
+        }
+      }
+    } else {
+      const stockRow = await db.finishedStock.where('brickSize').equals(brickSize).first();
+      if (stockRow) {
+        await db.finishedStock.update(stockRow.id, {
+          currentStock: round2(stockRow.currentStock - quantity),
+        });
+      }
     }
 
     const id = await db.salesLog.add({
       date,
       customerId,
-      brickSize,
-      quantity,
-      rate,
+      brickSize: isMultiItem ? undefined : brickSize,
+      quantity: isMultiItem ? undefined : quantity,
+      rate: isMultiItem ? undefined : rate,
+      items,
+      invoiceNumber,
       totalAmount,
       amountPaid: paid,
       balanceDue,

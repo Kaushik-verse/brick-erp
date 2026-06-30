@@ -94,9 +94,9 @@ export async function exportSalesLedgerExcel(sales, customersById) {
     const row = sheet.addRow({
       date: s.date,
       customer: customersById[s.customerId]?.name || 'Unknown',
-      brickSize: s.brickSize,
-      quantity: s.quantity,
-      rate: s.rate,
+      brickSize: s.brickSize || (s.items ? 'Multiple Items' : '-'),
+      quantity: s.quantity || (s.items ? s.items.reduce((sum, it) => sum + (it.quantity || 0), 0) : 0),
+      rate: s.rate || (s.items ? '-' : 0),
       totalAmount: s.totalAmount,
       amountPaid: s.amountPaid,
       balanceDue: s.balanceDue,
