@@ -414,8 +414,8 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
     }
   }
 
-  // Bank Details (shifted slightly to right of QR if QR exists)
-  const bankX = (settings?.showQRCode !== '0' && settings?.qrCodeImage) ? marginLeft + 35 : marginLeft;
+  // Bank Details (shifted to the right of QR to give more breathing room)
+  const bankX = (settings?.showQRCode !== '0' && settings?.qrCodeImage) ? marginLeft + 45 : marginLeft;
   if (settings?.showBankDetails !== '0' && factory.accountNumber) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
@@ -466,7 +466,7 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(...DARK);
-  doc.text('Thank you for your business ❤️', 105, pageHeight - 12, { align: 'center' });
+  doc.text('Thank you for your business', 105, pageHeight - 12, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...GRAY);
   const factoryPhone = factory.factoryPhone || '9502266200';
