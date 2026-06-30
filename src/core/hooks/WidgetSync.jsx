@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { useDashboardKPIs } from './useDexieHooks';
+import { monthRange } from '../utils/format';
 
 export default function WidgetSync() {
-  useDashboardKPIs(); // This hook handles syncing KPIs to native widget automatically
+  const { start, end } = monthRange();
+  useDashboardKPIs(start, end); // This hook handles syncing KPIs to native widget automatically
   return null;
 }
