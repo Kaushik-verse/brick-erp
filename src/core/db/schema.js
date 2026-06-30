@@ -127,13 +127,24 @@ export class BrickERPDatabase extends Dexie {
         businessCategories: 'Manufacturers of Fal-G Fly Ash Bricks, RCC Pipes, and Cement Products'
       };
 
-      for (const [key, val] of Object.entries(updates)) {
-        const existing = await tx.table('settings').where('key').equals(key).first();
-        if (existing) {
-          await tx.table('settings').update(existing.id, { value: val });
-        } else {
-          await tx.table('settings').add({ key, value: val });
+      const existingItems = await tx.table('settings').toArray();
+      const existingKeys = new Set(existingItems.map(item => item.key));
+      const toAdd = [];
+
+      await tx.table('settings').modify(item => {
+        if (updates[item.key] !== undefined) {
+          item.value = updates[item.key];
         }
+      });
+
+      for (const key of Object.keys(updates)) {
+        if (!existingKeys.has(key)) {
+          toAdd.push({ key, value: updates[key] });
+        }
+      }
+
+      if (toAdd.length > 0) {
+        await tx.table('settings').bulkAdd(toAdd);
       }
     });
 

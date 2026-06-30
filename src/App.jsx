@@ -54,7 +54,14 @@ export default function App() {
   const [dbReady, setDbReady] = useState(false);
 
   useEffect(() => {
-    seedDatabaseIfEmpty().then(() => setDbReady(true));
+    seedDatabaseIfEmpty()
+      .then(() => setDbReady(true))
+      .catch(e => {
+        console.error('DB Init Error:', e);
+        // Force ready anyway to avoid being completely stuck, 
+        // though some DB functions might fail if schema is broken.
+        setDbReady(true);
+      });
   }, []);
 
   // Automatic daily Google Drive Backup
