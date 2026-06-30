@@ -393,7 +393,23 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
   
   leftY += 16;
 
-  // QR Code Image (25x25mm as requested)
+  // Bank Details
+  if (settings?.showBankDetails !== '0' && factory.accountNumber) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...DARK);
+    doc.text('BANK DETAILS', marginLeft, leftY);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...GRAY);
+    doc.text(`A/C Holder: ${factory.factoryName || 'JAYA VASAVI INDUSTRIES'}`, marginLeft, leftY + 4.5);
+    doc.text(`Bank: ${factory.bankName}`, marginLeft, leftY + 9);
+    doc.text(`A/C: ${factory.accountNumber}`, marginLeft, leftY + 13.5);
+    doc.text(`IFSC: ${factory.ifscCode}`, marginLeft, leftY + 18);
+    
+    leftY += 25;
+  }
+
+  // QR Code Image (25x25mm)
   if (settings?.showQRCode !== '0' && settings?.qrCodeImage) {
     try {
       const qrFormat = settings.qrCodeImage.substring(11, settings.qrCodeImage.indexOf(';')).toUpperCase();
@@ -412,21 +428,6 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
     } catch (e) {
       console.warn('Failed to embed QR code image', e);
     }
-  }
-
-  // Bank Details (shifted to the right of QR to give more breathing room)
-  const bankX = (settings?.showQRCode !== '0' && settings?.qrCodeImage) ? marginLeft + 45 : marginLeft;
-  if (settings?.showBankDetails !== '0' && factory.accountNumber) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(...DARK);
-    doc.text('BANK DETAILS', bankX, leftY);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...GRAY);
-    doc.text(`A/C Holder: ${factory.factoryName || 'JAYA VASAVI INDUSTRIES'}`, bankX, leftY + 4.5);
-    doc.text(`Bank: ${factory.bankName}`, bankX, leftY + 9);
-    doc.text(`A/C: ${factory.accountNumber}`, bankX, leftY + 13.5);
-    doc.text(`IFSC: ${factory.ifscCode}`, bankX, leftY + 18);
   }
 
   // ---- FOOTER & SIGNATURES ----
