@@ -213,7 +213,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
               <div>
                 <Label>Select Customer</Label>
                 <div className="flex gap-2">
-                  <Select value={customerId} onChange={e => setCustomerId(e.target.value)}>
+                  <Select value={selectedCustomerId} onChange={e => setSelectedCustomerId(e.target.value)}>
                     <option value="">Choose customer...</option>
                     {(customers || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </Select>

@@ -102,6 +102,17 @@ export class BrickERPDatabase extends Dexie {
       invoiceSettings: '++id, key, value'
     });
 
+    this.version(7).stores({
+      // No schema change
+    }).upgrade(async tx => {
+      // User requested all invoice settings to be enabled by default
+      await tx.table('invoiceSettings').modify(item => {
+        if (item.key !== 'qrCodeImage') {
+          item.value = '1';
+        }
+      });
+    });
+
     this.customers = this.table('customers');
     this.suppliers = this.table('suppliers');
     this.rawMaterials = this.table('rawMaterials');
@@ -197,17 +208,17 @@ async function doSeedDatabaseIfEmpty() {
   if (invSettingsCount === 0) {
     await db.invoiceSettings.bulkAdd([
       { key: 'showTransport', value: '1' },
-      { key: 'showLoading', value: '0' },
-      { key: 'showUnloading', value: '0' },
-      { key: 'showOtherCharges', value: '0' },
+      { key: 'showLoading', value: '1' },
+      { key: 'showUnloading', value: '1' },
+      { key: 'showOtherCharges', value: '1' },
       { key: 'showDiscount', value: '1' },
-      { key: 'showGST', value: '0' },
+      { key: 'showGST', value: '1' },
       { key: 'showQRCode', value: '1' },
       { key: 'qrCodeImage', value: '' }, // base64 string
       { key: 'showBankDetails', value: '1' },
       { key: 'showDriverName', value: '1' },
       { key: 'showVehicleNumber', value: '1' },
-      { key: 'showSalesPerson', value: '0' },
+      { key: 'showSalesPerson', value: '1' },
       { key: 'showCustomerSignature', value: '1' },
       { key: 'showCompanySignature', value: '1' },
       { key: 'showTerms', value: '1' },

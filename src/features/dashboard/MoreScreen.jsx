@@ -3,11 +3,11 @@ import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
 
 const MENU_ITEMS = [
+  { key: 'expenses', label: 'Daily Expenses', desc: 'Diesel, maintenance, labour advances', icon: Fuel },
   { key: 'invoice-settings', label: 'Invoice Configuration', desc: 'Design, taxes, extra charges', icon: FileStack },
   { key: 'master-settings', label: 'Master Data', desc: 'Manage products and materials', icon: Settings },
   { key: 'recipe-settings', label: 'Brick Recipes', desc: 'Manage production recipes', icon: Settings },
   { key: 'settings', label: 'Factory Settings', desc: 'Rates and factory profile', icon: Settings },
-  { key: 'expenses', label: 'Daily Expenses', desc: 'Diesel, maintenance, labour advances', icon: Fuel },
   { key: 'documents', label: 'Document Hub', desc: 'Invoices, statements, EOD summary', icon: FileStack },
   { key: 'drive-sync', label: 'Google Drive Backup', desc: 'Sync ledger to appDataFolder', icon: CloudUpload },
 ];
