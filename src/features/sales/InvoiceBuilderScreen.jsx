@@ -27,7 +27,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
   const isExisting = !!invoiceBuilderData;
 
   // Invoice Meta
-  const [invNum, setInvNum] = useState(invoiceBuilderData?.invoice?.invoiceNumber || `INV-${todayISO().replace(/-/g, '')}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`);
+  const [invNum, setInvNum] = useState(invoiceBuilderData?.invoice?.invoiceNumber || `JVI-${todayISO().replace(/-/g, '')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`);
   const [date, setDate] = useState(invoiceBuilderData?.invoice?.date ? invoiceBuilderData.invoice.date.substring(0, 10) : todayISO());
   
   // Customer Details
@@ -150,23 +150,24 @@ export default function InvoiceBuilderScreen({ onBack }) {
         
         if (andShare) {
           // Generate WhatsApp Text
-          let itemsText = cleanItems.map((it, idx) => `${idx + 1}. ${it.description} (${it.quantity} @ ₹${it.rate}) = ₹${it.amount}`).join('\n');
-          
-          let chargesText = '';
-          if (discountAmount > 0) chargesText += `\n*Discount:* -₹${discountAmount.toLocaleString()}`;
-          if (transportCharges > 0) chargesText += `\n*Transport:* ₹${transportCharges.toLocaleString()}`;
-          if (loadingCharges > 0) chargesText += `\n*Loading:* ₹${loadingCharges.toLocaleString()}`;
-          if (unloadingCharges > 0) chargesText += `\n*Unloading:* ₹${unloadingCharges.toLocaleString()}`;
-          if (otherChargesVal > 0) chargesText += `\n*Other:* ₹${otherChargesVal.toLocaleString()}`;
-          if (gstAmount > 0) chargesText += `\n*GST:* ₹${gstAmount.toLocaleString()}`;
-
-          let bankText = '';
-          if (factorySettings.bankName && factorySettings.accountNumber) {
-            bankText = `\n\n🏦 *BANK DETAILS:*\nBank: ${factorySettings.bankName}\nA/C: ${factorySettings.accountNumber}\nIFSC: ${factorySettings.ifscCode}`;
-          }
-
-          const text = `🏢 *${factorySettings.factoryName || 'Company Name'}*\n\n📄 *INVOICE NO:* ${invNum}\n📅 *DATE:* ${date}\n\n👤 *BILL TO:*\n${cust ? cust.name : newCustomerName}\n\n🛍️ *ITEMS:*\n${itemsText}\n-----------------------\n*Subtotal:* ₹${subtotal.toLocaleString()}${chargesText}\n*Grand Total:* ₹${grandTotal.toLocaleString()}\n-----------------------\n💰 *STATUS:* ${paymentStatus.toUpperCase()}\n*Balance Due:* ₹${balanceDue.toLocaleString()}${bankText}\n\nThank you for your business!`;
-          
+          const totalQty = cleanItems.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+          const paymentStatusStr = balanceDue <= 0 ? '✅ Payment Status : PAID' : `💵 Balance Due : ₹${balanceDue.toLocaleString()}`;
+          const text = `🧱 *JAYA VASAVI INDUSTRIES*
+Dear *${cust ? cust.name : newCustomerName},*
+Thank you for choosing Jaya Vasavi Industries.
+Please find your invoice attached.
+📄 Invoice No : ${invNum}
+📅 Date : ${date}
+🧱 Total Quantity : ${totalQty} Nos
+💰 Grand Total : ₹${grandTotal.toLocaleString()}
+💳 Paid Amount : ₹${(grandTotal - balanceDue).toLocaleString()}
+${paymentStatusStr}
+If you have any questions regarding this invoice, please feel free to contact us.
+Thank you for your continued trust and support.
+Regards,
+*JAYA VASAVI INDUSTRIES*
+📍 Chinamamidipalli, Narsapur, West Godavari
+📞 9848174346 | 9502266200`;
           if (Capacitor.isNativePlatform()) {
             await saveAndShareBlob(pdfBlob, `${invNum}.pdf`, 'application/pdf', text);
           } else {
@@ -422,7 +423,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
       </div>
 
       {/* FAB Footer */}
-      <div className="fixed bottom-[80px] left-0 md:left-64 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 flex gap-3 z-50">
+      <div className="fixed bottom-[80px] md:bottom-0 left-0 md:left-64 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 flex gap-3 z-50">
         {!isExisting && (
           <button onClick={() => handleSaveInvoice(false, false)} disabled={saving} className="flex-1 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors">
             <Save size={18}/> {saving ? 'Saving...' : 'Save Only'}
