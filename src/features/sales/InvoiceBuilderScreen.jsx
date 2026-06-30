@@ -10,6 +10,11 @@ import { openWhatsAppLink } from '../../core/utils/whatsapp';
 import { recordSale } from '../../core/db/ledgerEngine';
 import { Capacitor } from '@capacitor/core';
 
+// ----- STYLED COMPONENTS -----
+const Label = ({ children }) => <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{children}</label>;
+const Input = (props) => <input {...props} className={`w-full bg-slate-100/50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:border-[#C65D2E] focus:ring-1 focus:ring-[#C65D2E] transition-all placeholder:text-slate-400 ${props.className||''}`} />;
+const Select = (props) => <select {...props} className={`w-full bg-slate-100/50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:border-[#C65D2E] focus:ring-1 focus:ring-[#C65D2E] appearance-none ${props.className||''}`}>{props.children}</select>;
+
 export default function InvoiceBuilderScreen({ onBack }) {
   const pushToast = useUIStore(s => s.pushToast);
   const invoiceBuilderData = useUIStore(s => s.invoiceBuilderData);
@@ -140,15 +145,15 @@ export default function InvoiceBuilderScreen({ onBack }) {
         
         if (andShare) {
           // Generate WhatsApp Text
-          let itemsText = payload.items.map((it, idx) => `${idx + 1}. ${it.description} (${it.quantity} @ ₹${it.rate}) = ₹${it.amount}`).join('\n');
+          let itemsText = cleanItems.map((it, idx) => `${idx + 1}. ${it.description} (${it.quantity} @ ₹${it.rate}) = ₹${it.amount}`).join('\n');
           
           let chargesText = '';
-          if (payload.discount > 0) chargesText += `\n*Discount:* -₹${payload.discount.toLocaleString()}`;
-          if (payload.transportCharges > 0) chargesText += `\n*Transport:* ₹${payload.transportCharges.toLocaleString()}`;
-          if (payload.loadingCharges > 0) chargesText += `\n*Loading:* ₹${payload.loadingCharges.toLocaleString()}`;
-          if (payload.unloadingCharges > 0) chargesText += `\n*Unloading:* ₹${payload.unloadingCharges.toLocaleString()}`;
-          if (payload.otherCharges > 0) chargesText += `\n*Other:* ₹${payload.otherCharges.toLocaleString()}`;
-          if (payload.cgst > 0) chargesText += `\n*GST:* ₹${(payload.cgst * 2).toLocaleString()}`;
+          if (discountAmount > 0) chargesText += `\n*Discount:* -₹${discountAmount.toLocaleString()}`;
+          if (transportCharges > 0) chargesText += `\n*Transport:* ₹${transportCharges.toLocaleString()}`;
+          if (loadingCharges > 0) chargesText += `\n*Loading:* ₹${loadingCharges.toLocaleString()}`;
+          if (unloadingCharges > 0) chargesText += `\n*Unloading:* ₹${unloadingCharges.toLocaleString()}`;
+          if (otherChargesVal > 0) chargesText += `\n*Other:* ₹${otherChargesVal.toLocaleString()}`;
+          if (gstAmount > 0) chargesText += `\n*GST:* ₹${gstAmount.toLocaleString()}`;
 
           let bankText = '';
           if (factorySettings.bankName && factorySettings.accountNumber) {
@@ -181,11 +186,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
     }
   };
 
-  // ----- STYLED COMPONENTS -----
-  const Label = ({ children }) => <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{children}</label>;
-  const Input = (props) => <input {...props} className={`w-full bg-slate-100/50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:border-[#C65D2E] focus:ring-1 focus:ring-[#C65D2E] transition-all placeholder:text-slate-400 ${props.className||''}`} />;
-  const Select = (props) => <select {...props} className={`w-full bg-slate-100/50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:border-[#C65D2E] focus:ring-1 focus:ring-[#C65D2E] appearance-none ${props.className||''}`}>{props.children}</select>;
-
+  // ----- STYLED COMPONENTS (Moved Out) -----
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-32">
       {/* Header */}
@@ -412,7 +413,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
       </div>
 
       {/* FAB Footer */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 flex gap-3 z-20">
+      <div className="fixed bottom-0 left-0 md:left-64 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 flex gap-3 z-50">
         {!isExisting && (
           <button onClick={() => handleSaveInvoice(false, false)} disabled={saving} className="flex-1 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors">
             <Save size={18}/> {saving ? 'Saving...' : 'Save Only'}
