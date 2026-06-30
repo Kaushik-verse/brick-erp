@@ -101,13 +101,18 @@ export default function InvoiceBuilderScreen({ onBack }) {
     }));
   };
 
-  const handleSaveInvoice = async (andShare = false) => {
+  const handleSaveInvoice = async (andPrint = false, andShare = false) => {
     if (!selectedCustomerId && !newCustomerName) { pushToast('Select or create customer', 'error'); return; }
     setSaving(true);
     try {
       let newCustId = selectedCustomerId;
       if (newCustomerName && !selectedCustomerId) {
-        newCustId = await db.customers.add({ name: newCustomerName, phone: newCustomerPhone, outstandingBalance: 0, createdAt: new Date().toISOString() });
+        const existing = await db.customers.where('name').equalsIgnoreCase(newCustomerName).first();
+        if (existing) {
+          newCustId = existing.id;
+        } else {
+          newCustId = await db.customers.add({ name: newCustomerName, phone: newCustomerPhone, outstandingBalance: 0, createdAt: new Date().toISOString() });
+        }
       }
 
       const cleanItems = items.map(i => ({ description: i.description, quantity: Number(i.quantity), rate: Number(i.rate), amount: Number(i.amount) }));
@@ -170,8 +175,12 @@ export default function InvoiceBuilderScreen({ onBack }) {
             window.open(url);
           }
         } else {
-          const url = URL.createObjectURL(pdfBlob);
-          window.open(url);
+          if (Capacitor.isNativePlatform()) {
+            await saveAndShareBlob(pdfBlob, `${invNum}.pdf`, 'application/pdf');
+          } else {
+            const url = URL.createObjectURL(pdfBlob);
+            window.open(url);
+          }
         }
       }
 
