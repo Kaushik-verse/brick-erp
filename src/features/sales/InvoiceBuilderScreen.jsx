@@ -151,19 +151,28 @@ export default function InvoiceBuilderScreen({ onBack }) {
         if (andShare) {
           // Generate WhatsApp Text
           const totalQty = cleanItems.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
-          const paymentStatusStr = balanceDue <= 0 ? '✅ Payment Status : PAID' : `💵 Balance Due : ₹${balanceDue.toLocaleString()}`;
+          const paidAmount = (grandTotal - balanceDue);
+          
           const text = `🧱 *JAYA VASAVI INDUSTRIES*
+
 Dear *${cust ? cust.name : newCustomerName},*
+
 Thank you for choosing Jaya Vasavi Industries.
+
 Please find your invoice attached.
+
 📄 Invoice No : ${invNum}
 📅 Date : ${date}
+
 🧱 Total Quantity : ${totalQty} Nos
 💰 Grand Total : ₹${grandTotal.toLocaleString()}
-💳 Paid Amount : ₹${(grandTotal - balanceDue).toLocaleString()}
-${paymentStatusStr}
+💳 Paid Amount : ₹${paidAmount.toLocaleString()}
+💵 Balance Due : ₹${balanceDue.toLocaleString()}
+
 If you have any questions regarding this invoice, please feel free to contact us.
+
 Thank you for your continued trust and support.
+
 Regards,
 *JAYA VASAVI INDUSTRIES*
 📍 Chinamamidipalli, Narsapur, West Godavari
