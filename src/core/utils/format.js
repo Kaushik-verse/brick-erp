@@ -27,8 +27,15 @@ export function formatNumber(value, decimals = 0) {
   return numFormatters.get(decimals).format(value || 0);
 }
 
+export function toLocalISOString(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalISOString(new Date());
 }
 
 export function formatDateDisplay(isoDate) {
@@ -44,9 +51,9 @@ export function formatDateShort(isoDate) {
 }
 
 export function monthRange(date = new Date()) {
-  const start = new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10);
-  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().slice(0, 10);
-  return { start, end };
+  const start = new Date(date.getFullYear(), date.getMonth(), 1);
+  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  return { start: toLocalISOString(start), end: toLocalISOString(end) };
 }
 
 export function brickSizeLabel(size) {
