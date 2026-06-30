@@ -27,22 +27,19 @@ public class WidgetPlugin extends Plugin {
         editor.putString("kpis", kpiData);
         editor.commit();
 
-        // Broadcast to all widgets to update
-        updateWidget(context, SummaryWidgetProvider.class);
-        updateWidget(context, DashboardWidgetProvider.class);
-        updateWidget(context, StockWidgetProvider.class);
+        updateWidget(context, SummaryWidgetProvider.class, kpiData);
+        updateWidget(context, DashboardWidgetProvider.class, kpiData);
+        updateWidget(context, StockWidgetProvider.class, kpiData);
 
         call.resolve();
     }
 
-    private void updateWidget(Context context, Class<?> widgetClass) {
+    private void updateWidget(Context context, Class<?> widgetClass, String kpiData) {
         AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
         int[] ids = appWidgetManager.getAppWidgetIds(new ComponentName(context, widgetClass));
         if (ids != null && ids.length > 0) {
-            SharedPreferences prefs = context.getSharedPreferences("WidgetData", Context.MODE_PRIVATE);
-            String kpisStr = prefs.getString("kpis", "{}");
             org.json.JSONObject kpis = new org.json.JSONObject();
-            try { kpis = new org.json.JSONObject(kpisStr); } catch (Exception e) {}
+            try { kpis = new org.json.JSONObject(kpiData); } catch (Exception e) {}
 
             if (widgetClass == DashboardWidgetProvider.class) {
                 for (int id : ids) DashboardWidgetProvider.updateAppWidget(context, appWidgetManager, id, kpis);

@@ -108,7 +108,7 @@ export function useOutstandingPurchases() {
 
 /** Aggregated dashboard KPIs for a given date range (defaults to current month). */
 export function useDashboardKPIs(rangeStart, rangeEnd) {
-  return useLiveQuery(async () => {
+  const kpis = useLiveQuery(async () => {
     const [sales, purchases, expenses, production, customers, suppliers, finishedStock, customerCollections, supplierPayments] =
       await Promise.all([
         db.salesLog.where('date').between(rangeStart, rangeEnd, true, true).toArray(),
