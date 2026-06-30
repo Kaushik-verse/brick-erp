@@ -33,16 +33,22 @@ function formatINR(amount) {
  * at your earliest convenience."
  */
 export function buildOutstandingReminderLink({ name, phone, amount, factoryName, factoryPhone }) {
-  const message = `*${factoryName || 'Jaya Vasavi Industries'}*
------------------------------------
-*PAYMENT REMINDER*
+  const message = `🧱 *JAYA VASAVI INDUSTRIES*
 
-👤 *Customer:* ${name}
+Dear *${name},*
+
+This is a gentle reminder regarding your outstanding balance with Jaya Vasavi Industries.
+
 💰 *Outstanding Balance:* ${formatINR(amount)}
 
-Please arrange for the payment of the outstanding amount. If already paid, please ignore this message.
+Please arrange for the payment of the outstanding amount at your earliest convenience. If already paid, please ignore this message.
 
-📞 ${factoryPhone || '9502266200'}`;
+Thank you for your continued trust and support.
+
+Regards,
+*JAYA VASAVI INDUSTRIES*
+📍 Chinamamidipalli, Narsapur, West Godavari
+📞 ${factoryPhone || '9848174346 | 9502266200'}`;
 
   const encoded = encodeURIComponent(message);
   const normalizedPhone = normalizePhone(phone);
@@ -54,16 +60,22 @@ Please arrange for the payment of the outstanding amount. If already paid, pleas
 }
 
 export function buildSupplierReminderLink({ name, phone, amount, factoryName, factoryPhone }) {
-  const message = `*${factoryName || 'Jaya Vasavi Industries'}*
------------------------------------
-*ACCOUNT PAYABLE UPDATE*
+  const message = `🧱 *JAYA VASAVI INDUSTRIES*
 
-👤 *Supplier:* ${name}
+Dear *${name},*
+
+This is an update regarding our pending account payable balance.
+
 💰 *Pending Balance:* ${formatINR(amount)}
 
 We will be settling this pending balance soon. Please verify with your ledger.
 
-📞 ${factoryPhone || '9502266200'}`;
+Thank you for your continued partnership.
+
+Regards,
+*JAYA VASAVI INDUSTRIES*
+📍 Chinamamidipalli, Narsapur, West Godavari
+📞 ${factoryPhone || '9848174346 | 9502266200'}`;
 
   const encoded = encodeURIComponent(message);
   const normalizedPhone = normalizePhone(phone);
