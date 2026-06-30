@@ -37,18 +37,6 @@ export default function AddPurchaseSheet({ open, onClose }) {
   useEffect(() => {
     if (!units || units.length === 0) return;
     
-    // Auto-switch to 'Unit' if quarry dust is selected
-    if (materialId) {
-       const mat = rawMaterials?.find(m => String(m.id) === String(materialId));
-       if (mat && (mat.name.toLowerCase().includes('quarry') || mat.name.toLowerCase().includes('dust'))) {
-          const unitObj = units.find(u => u.name.toLowerCase() === 'unit' || u.symbol.toLowerCase() === 'unit');
-          if (unitObj) {
-            setUnitId(String(unitObj.id));
-            return;
-          }
-       }
-    }
-
     // Default to Ton if no unit is set
     if (!unitId) {
       const ton = units.find(u => u.symbol.toLowerCase() === 'ton' || u.name.toLowerCase() === 'ton');

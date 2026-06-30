@@ -91,6 +91,11 @@ export class BrickERPDatabase extends Dexie {
           item.unit = 'kg';
         }
       });
+      
+      // User requested to remove 'Unit' named unit completely
+      await tx.table('units').where('name').equalsIgnoreCase('Unit').modify(item => {
+        item.isActive = 0;
+      });
     });
 
     this.customers = this.table('customers');
@@ -193,12 +198,6 @@ async function doSeedDatabaseIfEmpty() {
       { name: 'Cubic Feet', symbol: 'cft', baseUnit: 'cft', conversionFactor: 1, isActive: 1 },
       { name: 'Cubic Meter', symbol: 'cum', baseUnit: 'cum', conversionFactor: 1, isActive: 1 },
       { name: 'Liter', symbol: 'L', baseUnit: 'L', conversionFactor: 1, isActive: 1 },
-      { name: 'Unit', symbol: 'unit', baseUnit: 'kg', conversionFactor: 4000, isActive: 1 },
     ]);
-  } else {
-    const hasUnit = await db.units.where('name').equalsIgnoreCase('Unit').count();
-    if (hasUnit === 0) {
-      await db.units.add({ name: 'Unit', symbol: 'unit', baseUnit: 'kg', conversionFactor: 4000, isActive: 1 });
-    }
   }
 }
