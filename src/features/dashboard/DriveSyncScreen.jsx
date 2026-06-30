@@ -14,6 +14,7 @@ import { saveAndShareBlob } from '../../core/utils/nativeFileBridge';
 import { useUIStore } from '../../core/store/uiStore';
 import { formatDateDisplay } from '../../core/utils/format';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
+import { Capacitor } from '@capacitor/core';
 
 /**
  * DriveSyncScreen
@@ -37,12 +38,53 @@ export default function DriveSyncScreen({ onBack }) {
   const handleConnect = async () => {
     setBusy(true);
     try {
-      const user = await GoogleAuth.signIn();
-      if (user && user.authentication && user.authentication.accessToken) {
-        setAccessToken(user.authentication.accessToken);
-        pushToast('Connected to Google Drive', 'success');
+      if (!Capacitor.isNativePlatform()) {
+        const loadGsiScript = () => {
+          return new Promise((resolve) => {
+            if (window.google?.accounts?.oauth2) return resolve();
+            const script = document.createElement('script');
+            script.src = 'https://accounts.google.com/gsi/client';
+            script.async = true;
+            script.defer = true;
+            script.onload = resolve;
+            document.body.appendChild(script);
+          });
+        };
+        await loadGsiScript();
+        
+        const token = await new Promise((resolve, reject) => {
+          try {
+            const client = window.google.accounts.oauth2.initTokenClient({
+              client_id: '813773523036-4vo5qijl8uvtdqsd83qb5c7c7j9hth0u.apps.googleusercontent.com',
+              scope: 'https://www.googleapis.com/auth/drive.appdata',
+              callback: (response) => {
+                if (response.error) {
+                  reject(new Error(response.error));
+                } else {
+                  resolve(response.access_token);
+                }
+              },
+            });
+            client.requestAccessToken();
+          } catch (err) {
+            reject(err);
+          }
+        });
+        
+        if (token) {
+          setAccessToken(token);
+          pushToast('Connected to Google Drive', 'success');
+        } else {
+          throw new Error('Sign in failed (no token)');
+        }
       } else {
-        throw new Error('Sign in failed (no token)');
+        const user = await GoogleAuth.signIn();
+        if (user?.authentication?.accessToken || user?.accessToken) {
+          setAccessToken(user.authentication?.accessToken || user.accessToken);
+          pushToast('Connected to Google Drive', 'success');
+        } else {
+          throw new Error('Sign in failed (no token)');
+        }
       }
     } catch (e) {
       console.error(e);
