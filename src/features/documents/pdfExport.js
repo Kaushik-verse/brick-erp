@@ -221,18 +221,25 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
   if (customer?.address) { doc.text(customer.address, marginLeft, cy); cy += 4.5; }
   
   // Vehicle / Additional info (Right)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...DARK);
-  doc.text('DELIVERY DETAILS:', marginLeft + 105, y);
-  
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...GRAY);
-  let vy = y + 5;
-  if (settings?.showVehicleNumber !== '0' && vehicle?.vehicleNumber) { doc.text(`Vehicle: ${vehicle.vehicleNumber}`, marginLeft + 105, vy); vy += 4.5; }
-  if (settings?.showDriverName !== '0' && vehicle?.driverName) { doc.text(`Driver: ${vehicle.driverName}`, marginLeft + 105, vy); vy += 4.5; }
-  if (settings?.showSalesPerson !== '0' && vehicle?.salesPerson) { doc.text(`Sales: ${vehicle.salesPerson}`, marginLeft + 105, vy); vy += 4.5; }
-  if (customer?.address) { doc.text(`Destination: ${customer.address}`, marginLeft + 105, vy); vy += 4.5; }
+  const hasDeliveryDetails = (settings?.showVehicleNumber !== '0' && vehicle?.vehicleNumber) || 
+                             (settings?.showDriverName !== '0' && vehicle?.driverName) || 
+                             (settings?.showSalesPerson !== '0' && vehicle?.salesPerson) || 
+                             customer?.address;
+                             
+  if (hasDeliveryDetails) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text('DELIVERY DETAILS:', marginLeft + 105, y);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...GRAY);
+    let vy = y + 5;
+    if (settings?.showVehicleNumber !== '0' && vehicle?.vehicleNumber) { doc.text(`Vehicle: ${vehicle.vehicleNumber}`, marginLeft + 105, vy); vy += 4.5; }
+    if (settings?.showDriverName !== '0' && vehicle?.driverName) { doc.text(`Driver: ${vehicle.driverName}`, marginLeft + 105, vy); vy += 4.5; }
+    if (settings?.showSalesPerson !== '0' && vehicle?.salesPerson) { doc.text(`Sales: ${vehicle.salesPerson}`, marginLeft + 105, vy); vy += 4.5; }
+    if (customer?.address) { doc.text(`Destination: ${customer.address}`, marginLeft + 105, vy); vy += 4.5; }
+  }
 
   y += 28;
 
@@ -454,23 +461,6 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
     doc.text('Authorized Signature', marginRight, footY + 8, { align: 'right' });
   }
 
-  if (settings?.showCustomerSignature !== '0') {
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.2);
-    doc.line(marginLeft + 80, footY + 4, marginLeft + 120, footY + 4);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(...DARK);
-    doc.text('Customer Signature', marginLeft + 100, footY + 8, { align: 'center' });
-  }
-  
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(...DARK);
-  doc.text('Prepared By', marginLeft + 50, footY + 8, { align: 'center' });
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.2);
-  doc.line(marginLeft + 35, footY + 4, marginLeft + 65, footY + 4);
 
   // Very Bottom Page Footer Message
   doc.setFont('helvetica', 'bold');
