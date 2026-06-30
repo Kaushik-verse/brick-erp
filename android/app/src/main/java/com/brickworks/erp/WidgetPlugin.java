@@ -36,11 +36,21 @@ public class WidgetPlugin extends Plugin {
     }
 
     private void updateWidget(Context context, Class<?> widgetClass) {
-        Intent intent = new Intent(context, widgetClass);
-        intent.setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
-        int[] ids = AppWidgetManager.getInstance(context)
-                .getAppWidgetIds(new ComponentName(context, widgetClass));
-        intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids);
-        context.sendBroadcast(intent);
+        AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
+        int[] ids = appWidgetManager.getAppWidgetIds(new ComponentName(context, widgetClass));
+        if (ids != null && ids.length > 0) {
+            SharedPreferences prefs = context.getSharedPreferences("WidgetData", Context.MODE_PRIVATE);
+            String kpisStr = prefs.getString("kpis", "{}");
+            org.json.JSONObject kpis = new org.json.JSONObject();
+            try { kpis = new org.json.JSONObject(kpisStr); } catch (Exception e) {}
+
+            if (widgetClass == DashboardWidgetProvider.class) {
+                for (int id : ids) DashboardWidgetProvider.updateAppWidget(context, appWidgetManager, id, kpis);
+            } else if (widgetClass == StockWidgetProvider.class) {
+                for (int id : ids) StockWidgetProvider.updateAppWidget(context, appWidgetManager, id, kpis);
+            } else if (widgetClass == SummaryWidgetProvider.class) {
+                for (int id : ids) SummaryWidgetProvider.updateAppWidget(context, appWidgetManager, id, kpis);
+            }
+        }
     }
 }

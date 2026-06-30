@@ -36,10 +36,7 @@ public class StockWidgetProvider extends AppWidgetProvider {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_stock);
 
         try {
-            double sales = kpis.optDouble("totalSales", 0);
             double produced = kpis.optDouble("totalProduced", 0);
-            double receivables = kpis.optDouble("receivables", 0);
-            double payables = kpis.optDouble("payables", 0);
             double stock = kpis.optDouble("finishedStockValue", 0);
 
             NumberFormat format = NumberFormat.getCurrencyInstance(new Locale("en", "IN"));
@@ -48,10 +45,7 @@ public class StockWidgetProvider extends AppWidgetProvider {
             NumberFormat numFormat = NumberFormat.getNumberInstance(new Locale("en", "IN"));
             numFormat.setMaximumFractionDigits(0);
 
-            views.setTextViewText(R.id.val_sales, format.format(sales));
             views.setTextViewText(R.id.val_produced, numFormat.format(produced));
-            views.setTextViewText(R.id.val_receivables, format.format(receivables));
-            views.setTextViewText(R.id.val_payables, format.format(payables));
             views.setTextViewText(R.id.val_stock, format.format(stock));
 
         } catch (Exception e) {
