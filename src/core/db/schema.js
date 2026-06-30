@@ -233,9 +233,9 @@ async function doSeedDatabaseIfEmpty() {
   const stockCount = await db.finishedStock.count();
   if (stockCount === 0) {
     await db.finishedStock.bulkAdd([
-      { brickSize: '4-inch', currentStock: 0, costPrice: 0, sellingPrice: 7, isActive: 1 },
-      { brickSize: '8-inch', currentStock: 0, costPrice: 0, sellingPrice: 12, isActive: 1 },
-      { brickSize: '9-inch', currentStock: 0, costPrice: 0, sellingPrice: 14, isActive: 1 },
+      { brickSize: '4-inch', currentStock: 0, costPrice: 0, sellingPrice: 24, isActive: 1 },
+      { brickSize: '8-inch', currentStock: 0, costPrice: 0, sellingPrice: 24, isActive: 1 },
+      { brickSize: '9-inch', currentStock: 0, costPrice: 0, sellingPrice: 26, isActive: 1 },
     ]);
   }
 
@@ -253,7 +253,7 @@ async function doSeedDatabaseIfEmpty() {
       },
       {
         brickSize: '9-inch',
-        flyAshKg: 3, limeKg: 1, gypsumKg: 0.1, sandKg: 10.9, cementKg: 0,
+        flyAshKg: 3, limeKg: 1.12, gypsumKg: 0.1, sandKg: 12, cementKg: 0,
       },
     ]);
   }
@@ -265,7 +265,6 @@ async function doSeedDatabaseIfEmpty() {
       { key: 'factoryPhone', value: '9848174346, 9502266200' },
       { key: 'ownerName', value: 'SriRamKumar(Ch Nagabhushanam)' },
       { key: 'factoryAddress', value: '187/3, 30th Ward, Chinamamidipalli, Narsapur - 534275, West Godavari' },
-      { key: 'gstin', value: '37ACZPC2957R1Z' },
       { key: 'businessCategories', value: 'Manufacturers of Fal-G Fly Ash Bricks, RCC Pipes, and Cement Products' },
       { key: 'bankName', value: 'State Bank of India (SBI)' },
       { key: 'accountNumber', value: '36943340813' },
@@ -282,7 +281,6 @@ async function doSeedDatabaseIfEmpty() {
       { key: 'showUnloading', value: '1' },
       { key: 'showOtherCharges', value: '1' },
       { key: 'showDiscount', value: '1' },
-      { key: 'showGST', value: '1' },
       { key: 'showQRCode', value: '1' },
       { key: 'qrCodeImage', value: '' }, // base64 string
       { key: 'showBankDetails', value: '1' },

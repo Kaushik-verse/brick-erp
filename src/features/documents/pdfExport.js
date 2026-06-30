@@ -196,10 +196,7 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
   
   doc.text(`Invoice No: ${invoice.invoiceNumber || 'INV-0001'}`, marginRight - 5, y + 21, { align: 'right' });
   doc.text(`Date: ${formatDateDisplay(invoice.date)}`, marginRight - 5, y + 25.5, { align: 'right' });
-  if (factory.gstin) {
-    doc.text(`GSTIN: ${factory.gstin}`, marginRight - 5, y + 30, { align: 'right' });
-  }
-  doc.text(`Pay Mode: ${paymentMode} | Status: ${pStatus}`, marginRight - 5, y + 34.5, { align: 'right' });
+  doc.text(`Pay Mode: ${paymentMode} | Status: ${pStatus}`, marginRight - 5, y + 30, { align: 'right' });
 
   y += 50;
 
@@ -319,10 +316,7 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
   if (settings?.showUnloading !== '0' && summary.unloadingCharges) drawRow('Unloading Charges', pdfCurrency(summary.unloadingCharges));
   if (settings?.showOtherCharges !== '0' && summary.otherCharges) drawRow('Other Charges', pdfCurrency(summary.otherCharges));
   
-  if (settings?.showGST !== '0' && summary.cgst) {
-    drawRow('CGST', pdfCurrency(summary.cgst));
-    drawRow('SGST', pdfCurrency(summary.sgst));
-  }
+
 
   // Grand Total Line
   sy += 2;

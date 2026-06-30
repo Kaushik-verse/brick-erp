@@ -127,7 +127,6 @@ export default function InvoiceSettingsScreen({ onBack }) {
         <GlassCard padding="p-4">
           <h3 className="text-xs font-bold text-clay-400 uppercase tracking-wider mb-2">Calculations</h3>
           <ToggleRow label="Discounts" settingKey="showDiscount" description="Enable % or flat discounts" />
-          <ToggleRow label="GST Taxes" settingKey="showGST" description="Calculate CGST/SGST/IGST" />
         </GlassCard>
 
         <GlassCard padding="p-4">

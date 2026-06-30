@@ -240,6 +240,20 @@ export async function downloadBackupFromDrive(accessToken) {
   return snapshot;
 }
 
+/**
+ * Deletes the backup JSON file from Google Drive if it exists.
+ */
+export async function deleteBackupFromDrive(accessToken) {
+  const existing = await findExistingBackupFileId(accessToken);
+  if (!existing) return;
+
+  const res = await fetch(`${DRIVE_API_BASE}/files/${existing.id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Drive delete failed: ${res.status}`);
+}
+
 /** Reads the locally cached "last synced" timestamp for UI display. */
 export async function getLastSyncTimestamp() {
   const { value } = await Preferences.get({ key: 'lastDriveSync' });

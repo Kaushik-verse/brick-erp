@@ -38,8 +38,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
 
   // Vehicle Details
   const [vehicleNumber, setVehicleNumber] = useState('');
-  const [driverName, setDriverName] = useState('');
-  const [salesPerson, setSalesPerson] = useState('');
+  const [discountPercent, setDiscountPercent] = useState('');
   const [remarks, setRemarks] = useState('');
 
   // Products
@@ -58,7 +57,6 @@ export default function InvoiceBuilderScreen({ onBack }) {
   // Discount & GST
   const [discountType, setDiscountType] = useState('flat');
   const [discountValue, setDiscountValue] = useState(invoiceBuilderData?.summary?.discount ? String(invoiceBuilderData.summary.discount) : '');
-  const [gstPercent, setGstPercent] = useState('');
 
   // Payment
   const [amountPaid, setAmountPaid] = useState(invoiceBuilderData?.summary?.amountPaid ? String(invoiceBuilderData.summary.amountPaid) : '');
@@ -77,8 +75,8 @@ export default function InvoiceBuilderScreen({ onBack }) {
   const otherChargesVal = Number(otherCharges) || 0;
   
   const taxableAmount = subtotal - discountAmount + transportCharges + loadingCharges + unloadingCharges + otherChargesVal;
-  const gstAmount = (taxableAmount * (Number(gstPercent) || 0)) / 100;
-  const grandTotal = taxableAmount + gstAmount;
+  
+  const grandTotal = taxableAmount;
   const paid = Number(amountPaid) || 0;
   const balanceDue = grandTotal - paid;
   
@@ -89,6 +87,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
   // ----- HANDLERS -----
   const handleAddItem = () => setItems([...items, { id: Date.now().toString(), description: '', quantity: '', rate: '', amount: 0 }]);
   const handleRemoveItem = (id) => items.length > 1 && setItems(items.filter(it => it.id !== id));
+  const handleCreateCustomer = async () => { if (!newCustomerName) return; const id = await db.customers.add({ name: newCustomerName, phone: newCustomerPhone, outstandingBalance: 0, createdAt: new Date().toISOString() }); setSelectedCustomerId(id); setShowNewCustomer(false); };
 
   const updateItem = (id, field, value) => {
     setItems(prev => prev.map(it => {
@@ -138,9 +137,9 @@ export default function InvoiceBuilderScreen({ onBack }) {
       const invoiceData = {
         invoice: { invoiceNumber: invNum, date },
         items: cleanItems,
-        summary: { subtotal, discount: discountAmount, transportCharges, loadingCharges, unloadingCharges, otherCharges: otherChargesVal, cgst: gstAmount/2, sgst: gstAmount/2, grandTotal, amountPaid: paid, balanceDue, paymentStatus },
+        summary: { subtotal, discount: discountAmount, transportCharges, loadingCharges, unloadingCharges, otherCharges: otherChargesVal, grandTotal, amountPaid: paid, balanceDue, paymentStatus },
         customer: cust || { name: newCustomerName },
-        vehicle: { vehicleNumber, driverName, salesPerson },
+        vehicle: { vehicleNumber },
         factory: factorySettings,
         settings: settings
       };
@@ -149,7 +148,6 @@ export default function InvoiceBuilderScreen({ onBack }) {
         const pdfBlob = await generateInvoicePDF(invoiceData);
         
         if (andShare) {
-          // Generate WhatsApp Text
           const totalQty = cleanItems.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
           const paidAmount = (grandTotal - balanceDue);
           
@@ -205,10 +203,8 @@ Regards,
     }
   };
 
-  // ----- STYLED COMPONENTS (Moved Out) -----
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-48">
-      {/* Header */}
       <div className="bg-white border-b border-slate-200 px-4 pt-safe-header pb-4 flex items-center gap-3 sticky top-0 z-10 shadow-sm">
         <button onClick={onBack} className="p-2 rounded-full bg-slate-100 text-slate-600 active:scale-95 transition-transform">
           <ArrowLeft size={18} />
@@ -221,7 +217,6 @@ Regards,
 
       <div className="p-4 space-y-4 max-w-4xl mx-auto">
         
-        {/* CUSTOMER SECTION */}
         <div className="bg-white rounded-2xl p-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-slate-100">
           <div className="flex justify-between items-center mb-3">
             <h2 className="text-sm font-bold text-slate-800">Customer Details</h2>
@@ -230,12 +225,15 @@ Regards,
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {!showNewCustomer ? (
-              <div>
-                <Label>Select Customer</Label>
-                <Select value={selectedCustomerId} onChange={e => setSelectedCustomerId(e.target.value)}>
-                  <option value="">Choose customer...</option>
-                  {(customers || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </Select>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <Label>Select Customer</Label>
+                  <Select value={selectedCustomerId} onChange={e => setSelectedCustomerId(e.target.value)}>
+                    <option value="">Choose customer...</option>
+                    {(customers || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </Select>
+                </div>
+                <button onClick={() => setShowNewCustomer(true)} className="p-2.5 bg-slate-100 rounded-lg text-slate-600"><UserPlus size={18}/></button>
               </div>
             ) : (
               <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
@@ -250,7 +248,6 @@ Regards,
           </div>
         </div>
 
-        {/* PRODUCT TABLE */}
         <div className="bg-white rounded-2xl p-0 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-slate-100 overflow-hidden">
           <div className="p-4 border-b border-slate-100">
             <h2 className="text-sm font-bold text-slate-800">Products</h2>
@@ -282,7 +279,6 @@ Regards,
                       />
                       <datalist id="products">
                         {(finishedStock||[]).filter(s=>s.isActive).map(s => <option key={s.id} value={s.brickSize} />)}
-                        <option value="Custom Item" />
                       </datalist>
                     </td>
                     <td className="p-3">
@@ -312,33 +308,21 @@ Regards,
           </div>
         </div>
 
-        {/* OPTIONAL CHARGES & SUMMARY */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          
-          {/* Left Column - Optional Fields */}
           <div className="space-y-4">
             <div className="bg-white rounded-2xl p-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-slate-100">
               <h2 className="text-sm font-bold text-slate-800 mb-3">Additional Details</h2>
-              
               <div className="space-y-3">
                 {settings?.showVehicleNumber === '1' && (
                   <div><Label>Vehicle Number</Label><Input value={vehicleNumber} onChange={e=>setVehicleNumber(e.target.value)} placeholder="AP 37..."/></div>
-                )}
-                {settings?.showDriverName === '1' && (
-                  <div><Label>Driver Name</Label><Input value={driverName} onChange={e=>setDriverName(e.target.value)} placeholder="Driver Name"/></div>
-                )}
-                {settings?.showSalesPerson === '1' && (
-                  <div><Label>Sales Person</Label><Input value={salesPerson} onChange={e=>setSalesPerson(e.target.value)} placeholder="Agent name"/></div>
                 )}
                 <div><Label>Remarks</Label><Input value={remarks} onChange={e=>setRemarks(e.target.value)} placeholder="Any notes..."/></div>
               </div>
             </div>
           </div>
 
-          {/* Right Column - Summary & Math */}
           <div className="bg-white rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-slate-100 overflow-hidden flex flex-col">
             <div className="p-4 border-b border-slate-100 flex-1 space-y-3">
-              
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-500 font-medium">Subtotal</span>
                 <span className="font-bold text-slate-800">₹{subtotal.toLocaleString()}</span>
@@ -372,13 +356,6 @@ Regards,
                 <span className="text-sm text-slate-500 flex-1">Other Charges</span>
                 <Input type="number" value={otherCharges} onChange={e=>setOtherCharges(e.target.value)} placeholder="0" className="!py-1 !text-xs w-24 text-right"/>
               </div>
-
-              <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-100">
-                <span className="text-sm text-slate-500">GST %</span>
-                <Input type="number" value={gstPercent} onChange={e=>setGstPercent(e.target.value)} placeholder="0" className="!py-1 !text-xs w-16 text-center"/>
-                <span className="text-sm font-bold text-slate-700 min-w-[80px] text-right">+₹{gstAmount.toLocaleString()}</span>
-              </div>
-
             </div>
             
             <div className="bg-[#1E293B] p-4 text-white">

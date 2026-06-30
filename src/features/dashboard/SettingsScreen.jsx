@@ -6,6 +6,8 @@ import GlassCard from '../../core/ui/GlassCard';
 import GlassButton from '../../core/ui/GlassButton';
 import { GlassInput } from '../../core/ui/GlassFormControls';
 import { db } from '../../core/db/schema';
+import { Preferences } from '@capacitor/preferences';
+import { deleteBackupFromDrive } from '../../core/drive/driveSync';
 import { useUIStore } from '../../core/store/uiStore';
 import { useFinishedStock } from '../../core/hooks/useDexieHooks';
 
@@ -17,7 +19,6 @@ export default function SettingsScreen({ onBack, onNavigate }) {
   const [factoryName, setFactoryName] = useState('');
   const [factoryPhone, setFactoryPhone] = useState('');
   const [factoryAddress, setFactoryAddress] = useState('');
-  const [gstin, setGstin] = useState('');
   const [businessCategories, setBusinessCategories] = useState('');
   const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
@@ -33,7 +34,6 @@ export default function SettingsScreen({ onBack, onNavigate }) {
     setFactoryName(map.factoryName || '');
     setFactoryPhone(map.factoryPhone || '');
     setFactoryAddress(map.factoryAddress || '');
-    setGstin(map.gstin || '');
     setBusinessCategories(map.businessCategories || '');
     setBankName(map.bankName || '');
     setAccountNumber(map.accountNumber || '');
@@ -56,7 +56,6 @@ export default function SettingsScreen({ onBack, onNavigate }) {
       await updateSetting('factoryName', factoryName);
       await updateSetting('factoryPhone', factoryPhone);
       await updateSetting('factoryAddress', factoryAddress);
-      await updateSetting('gstin', gstin);
       await updateSetting('businessCategories', businessCategories);
       await updateSetting('bankName', bankName);
       await updateSetting('accountNumber', accountNumber);
@@ -99,6 +98,19 @@ export default function SettingsScreen({ onBack, onNavigate }) {
         db.vehicles.clear(),
         db.drivers.clear(),
       ]);
+      await Preferences.clear();
+      
+      const gdriveToken = localStorage.getItem('gdrive_token');
+      if (gdriveToken) {
+        try {
+          await deleteBackupFromDrive(gdriveToken);
+          localStorage.removeItem('gdrive_token');
+          localStorage.removeItem('gdrive_token_expiry');
+        } catch (e) {
+          console.warn('Could not delete drive backup', e);
+        }
+      }
+
       pushToast('Database reset successfully. Reloading...', 'success');
       setTimeout(() => window.location.reload(), 1500);
     } catch (e) {
@@ -125,7 +137,6 @@ export default function SettingsScreen({ onBack, onNavigate }) {
           <GlassInput label="Factory Name" value={factoryName} onChange={(e) => setFactoryName(e.target.value)} />
           <GlassInput label="Phone" value={factoryPhone} onChange={(e) => setFactoryPhone(e.target.value)} inputMode="tel" />
           <GlassInput label="Address" value={factoryAddress} onChange={(e) => setFactoryAddress(e.target.value)} />
-          <GlassInput label="GSTIN (Optional)" value={gstin} onChange={(e) => setGstin(e.target.value)} />
           <GlassInput label="Business Categories" value={businessCategories} onChange={(e) => setBusinessCategories(e.target.value)} placeholder="e.g. Fly Ash Bricks | RCC Pipes" />
         </GlassCard>
 
