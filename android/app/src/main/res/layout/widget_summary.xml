@@ -32,14 +32,14 @@
                 android:layout_height="wrap_content"
                 android:text="Net Cash"
                 android:textColor="#808080"
-                android:textSize="11sp"/>
+                android:textSize="10sp"/>
             <TextView
                 android:id="@+id/text_net_cash"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="₹0"
                 android:textColor="#FFFFFF"
-                android:textSize="20sp"
+                android:textSize="18sp"
                 android:textStyle="bold"/>
         </LinearLayout>
 
@@ -53,14 +53,14 @@
                 android:layout_height="wrap_content"
                 android:text="Receivables"
                 android:textColor="#808080"
-                android:textSize="11sp"/>
+                android:textSize="10sp"/>
             <TextView
                 android:id="@+id/text_receivables"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="₹0"
                 android:textColor="#ef4444"
-                android:textSize="20sp"
+                android:textSize="18sp"
                 android:textStyle="bold"/>
         </LinearLayout>
 

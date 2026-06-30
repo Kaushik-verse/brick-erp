@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import WidgetSync from './core/hooks/WidgetSync';
 import BottomNav from './core/ui/BottomNav';
 import ScreenTransition from './core/ui/ScreenTransition';
 import ToastStack from './core/ui/ToastStack';
@@ -185,6 +186,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full relative bg-kiln-900">
+      <WidgetSync />
       <ToastStack />
       <main className="min-h-screen w-full md:pl-64">
         <ScreenTransition activeKey={subScreen || activeTab}>
