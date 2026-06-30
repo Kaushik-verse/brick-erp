@@ -1,10 +1,6 @@
-import { useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
 import { calculateAgingDays } from '../db/ledgerEngine';
-import { registerPlugin, Capacitor } from '@capacitor/core';
-
-const WidgetPlugin = registerPlugin('WidgetPlugin');
 
 /** All customers, sorted by name. */
 export function useCustomers() {
@@ -108,7 +104,7 @@ export function useOutstandingPurchases() {
 
 /** Aggregated dashboard KPIs for a given date range (defaults to current month). */
 export function useDashboardKPIs(rangeStart, rangeEnd) {
-  const kpis = useLiveQuery(async () => {
+  return useLiveQuery(async () => {
     const [sales, purchases, expenses, production, customers, suppliers, finishedStock, customerCollections, supplierPayments] =
       await Promise.all([
         db.salesLog.where('date').between(rangeStart, rangeEnd, true, true).toArray(),
@@ -171,25 +167,6 @@ export function useDashboardKPIs(rangeStart, rangeEnd) {
       productionRuns: production.length,
     };
   }, [rangeStart, rangeEnd], null);
-
-  // Sync KPIs to native Android widgets whenever data changes
-  useEffect(() => {
-    if (!kpis) {
-      console.log('[WidgetSync] kpis is null, skipping');
-      return;
-    }
-    if (!Capacitor.isNativePlatform()) {
-      console.log('[WidgetSync] Not native platform, skipping');
-      return;
-    }
-    const jsonStr = JSON.stringify(kpis);
-    console.log('[WidgetSync] Pushing to native:', jsonStr.substring(0, 120));
-    WidgetPlugin.syncKpis({ data: jsonStr })
-      .then(() => console.log('[WidgetSync] Native sync successful'))
-      .catch((err) => console.error('[WidgetSync] Native sync FAILED:', err));
-  }, [kpis]);
-
-  return kpis;
 }
 
 /** Invoice settings map (key -> value) */
