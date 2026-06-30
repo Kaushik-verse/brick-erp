@@ -113,6 +113,30 @@ export class BrickERPDatabase extends Dexie {
       });
     });
 
+    this.version(8).stores({
+      // No schema change
+    }).upgrade(async tx => {
+      // Pre-fill user company details based on prompt
+      const updates = {
+        factoryAddress: '187/3, 30th Ward, Chinamamidipalli, Narsapur - 534275, West Godavari',
+        gstin: '37ACZPC2957R1Z',
+        bankName: 'State Bank of India (SBI)',
+        accountNumber: '36943340813',
+        ifscCode: 'SBIN0000885',
+        factoryPhone: '9848174346, 9502266200',
+        businessCategories: 'Manufacturers of Fal-G Fly Ash Bricks, RCC Pipes, and Cement Products'
+      };
+
+      for (const [key, val] of Object.entries(updates)) {
+        const existing = await tx.table('settings').where('key').equals(key).first();
+        if (existing) {
+          await tx.table('settings').update(existing.id, { value: val });
+        } else {
+          await tx.table('settings').add({ key, value: val });
+        }
+      }
+    });
+
     this.customers = this.table('customers');
     this.suppliers = this.table('suppliers');
     this.rawMaterials = this.table('rawMaterials');
@@ -191,15 +215,15 @@ async function doSeedDatabaseIfEmpty() {
   const settingsCount = await db.settings.count();
   if (settingsCount === 0) {
     await db.settings.bulkAdd([
-      { key: 'factoryName', value: 'Jaya Vasavi Industries' },
-      { key: 'factoryPhone', value: '9502266200' },
+      { key: 'factoryName', value: 'JAYA VASAVI INDUSTRIES' },
+      { key: 'factoryPhone', value: '9848174346, 9502266200' },
       { key: 'ownerName', value: 'SriRamKumar(Ch Nagabhushanam)' },
-      { key: 'factoryAddress', value: '' },
-      { key: 'gstin', value: '' },
-      { key: 'businessCategories', value: 'Fly Ash Bricks | RCC Pipes | Cement Products' },
-      { key: 'bankName', value: '' },
-      { key: 'accountNumber', value: '' },
-      { key: 'ifscCode', value: '' },
+      { key: 'factoryAddress', value: '187/3, 30th Ward, Chinamamidipalli, Narsapur - 534275, West Godavari' },
+      { key: 'gstin', value: '37ACZPC2957R1Z' },
+      { key: 'businessCategories', value: 'Manufacturers of Fal-G Fly Ash Bricks, RCC Pipes, and Cement Products' },
+      { key: 'bankName', value: 'State Bank of India (SBI)' },
+      { key: 'accountNumber', value: '36943340813' },
+      { key: 'ifscCode', value: 'SBIN0000885' },
       { key: 'upiId', value: '' },
     ]);
   }
