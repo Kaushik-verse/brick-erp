@@ -81,12 +81,15 @@ export class BrickERPDatabase extends Dexie {
       }
     });
 
-    this.version(4).stores({
+    this.version(5).stores({
       // No schema change
     }).upgrade(async tx => {
       // User requested to change Quarry Dust unit back to standard 'kg'
       await tx.table('rawMaterials').where('name').equalsIgnoreCase('Quarry Dust').modify(item => {
-        if (item.unit === 'unit') item.unit = 'kg';
+        const u = (item.unit || '').trim().toLowerCase();
+        if (u === 'unit') {
+          item.unit = 'kg';
+        }
       });
     });
 
