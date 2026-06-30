@@ -25,7 +25,7 @@ public class WidgetPlugin extends Plugin {
         SharedPreferences prefs = context.getSharedPreferences("WidgetData", Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
         editor.putString("kpis", kpiData);
-        editor.apply();
+        editor.commit();
 
         // Broadcast to all widgets to update
         updateWidget(context, SummaryWidgetProvider.class);
