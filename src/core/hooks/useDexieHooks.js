@@ -177,3 +177,15 @@ export function useDashboardKPIs(rangeStart, rangeEnd) {
     return kpiData;
   }, [rangeStart, rangeEnd], null);
 }
+
+/** Invoice settings map (key -> value) */
+export function useInvoiceSettings() {
+  return useLiveQuery(async () => {
+    const settingsArr = await db.invoiceSettings.toArray();
+    const map = {};
+    for (const s of settingsArr) {
+      map[s.key] = s.value;
+    }
+    return map;
+  }, [], {});
+}

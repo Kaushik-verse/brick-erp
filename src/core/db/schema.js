@@ -98,6 +98,10 @@ export class BrickERPDatabase extends Dexie {
       });
     });
 
+    this.version(6).stores({
+      invoiceSettings: '++id, key, value'
+    });
+
     this.customers = this.table('customers');
     this.suppliers = this.table('suppliers');
     this.rawMaterials = this.table('rawMaterials');
@@ -108,6 +112,7 @@ export class BrickERPDatabase extends Dexie {
     this.expenses = this.table('expenses');
     this.recipes = this.table('recipes');
     this.settings = this.table('settings');
+    this.invoiceSettings = this.table('invoiceSettings');
     this.driveSyncMeta = this.table('driveSyncMeta');
     
     this.customerCollections = this.table('customerCollections');
@@ -185,6 +190,28 @@ async function doSeedDatabaseIfEmpty() {
       { key: 'accountNumber', value: '' },
       { key: 'ifscCode', value: '' },
       { key: 'upiId', value: '' },
+    ]);
+  }
+
+  const invSettingsCount = await db.invoiceSettings.count();
+  if (invSettingsCount === 0) {
+    await db.invoiceSettings.bulkAdd([
+      { key: 'showTransport', value: '1' },
+      { key: 'showLoading', value: '0' },
+      { key: 'showUnloading', value: '0' },
+      { key: 'showOtherCharges', value: '0' },
+      { key: 'showDiscount', value: '1' },
+      { key: 'showGST', value: '0' },
+      { key: 'showQRCode', value: '1' },
+      { key: 'qrCodeImage', value: '' }, // base64 string
+      { key: 'showBankDetails', value: '1' },
+      { key: 'showDriverName', value: '1' },
+      { key: 'showVehicleNumber', value: '1' },
+      { key: 'showSalesPerson', value: '0' },
+      { key: 'showCustomerSignature', value: '1' },
+      { key: 'showCompanySignature', value: '1' },
+      { key: 'showTerms', value: '1' },
+      { key: 'showBusinessDescription', value: '1' },
     ]);
   }
 

@@ -22,7 +22,7 @@ function blobToBase64(blob) {
  * `mimeType` (optional) re-wraps the blob with an explicit content type —
  * some Android share targets route incorrectly without one.
  */
-export async function saveAndShareBlob(blob, filename, mimeType) {
+export async function saveAndShareBlob(blob, filename, mimeType, text = '') {
   const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform?.());
   const typedBlob = mimeType && blob.type !== mimeType ? new Blob([blob], { type: mimeType }) : blob;
 
@@ -50,11 +50,16 @@ export async function saveAndShareBlob(blob, filename, mimeType) {
     directory: Directory.Cache,
   });
 
-  await Share.share({
+  const shareOptions = {
     title: filename,
     url: result.uri,
     dialogTitle: `Share ${filename}`,
-  });
+  };
+  if (text) {
+    shareOptions.text = text;
+  }
+
+  await Share.share(shareOptions);
 
   return { method: 'native-share', uri: result.uri };
 }

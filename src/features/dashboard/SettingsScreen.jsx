@@ -165,6 +165,11 @@ export default function SettingsScreen({ onBack, onNavigate }) {
             </GlassButton>
           </div>
           <div className="mt-2">
+            <GlassButton variant="glass" fullWidth onClick={() => onNavigate('invoice-settings')}>
+              Invoice Configuration
+            </GlassButton>
+          </div>
+          <div className="mt-2">
             <GlassButton variant="glass" fullWidth onClick={() => onNavigate('recipe-settings')}>
               Manage Brick Recipes
             </GlassButton>

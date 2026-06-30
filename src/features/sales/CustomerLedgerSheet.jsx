@@ -88,21 +88,23 @@ export default function CustomerLedgerSheet({ open, onClose, customerId }) {
         return;
       }
 
-      // Group sales by brick size
+      // Group sales by brick size/description
       const grouped = {};
       let subtotal = 0;
       let amountPaid = 0;
       
       for (const s of sales) {
-         if (!grouped[s.brickSize]) {
-             grouped[s.brickSize] = { quantity: 0, amount: 0, rate: s.rate };
+         const itemsList = s.items || [{ description: s.brickSize, quantity: s.quantity, rate: s.rate, amount: s.totalAmount }];
+         for (const it of itemsList) {
+           const desc = it.description || 'Unknown Item';
+           if (!grouped[desc]) {
+               grouped[desc] = { quantity: 0, amount: 0, rate: it.rate };
+           }
+           grouped[desc].quantity += (it.quantity || 0);
+           grouped[desc].amount += (it.amount || 0);
          }
-         grouped[s.brickSize].quantity += s.quantity;
-         grouped[s.brickSize].amount += s.totalAmount;
-         // Note: If rate differs across time, this will just show the first rate encountered or an average. 
-         // For a true invoice, we should list every line, but rolling them up is cleaner for a consolidated bill.
-         subtotal += s.totalAmount;
-         amountPaid += s.amountPaid;
+         subtotal += (s.totalAmount || 0);
+         amountPaid += (s.amountPaid || 0);
       }
 
       const items = Object.entries(grouped).map(([brickSize, data]) => ({
@@ -218,11 +220,19 @@ export default function CustomerLedgerSheet({ open, onClose, customerId }) {
               if (t.type === 'sale') {
                 const aging = calculateAgingDays(t.date);
                 const status = t.balanceDue > 0 && aging > 30 ? 'overdue' : t.paymentStatus;
+                
+                let title = t.invoiceNumber || 'Sale';
+                if (!t.invoiceNumber && t.brickSize) {
+                  title = `${t.quantity} × ${t.brickSize}`;
+                } else if (t.items?.length) {
+                  title = `${title} (${t.items.length} items)`;
+                }
+
                 return (
                   <div key={`sale-${t.id}`} className="glass-surface-light rounded-xl p-3 border-l-2 border-transparent">
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-medium text-clay-100">
-                        {t.quantity} × {t.brickSize}
+                        {title}
                       </p>
                       <div className="flex items-center gap-2">
                         <StatusPill status={status} size="sm" />

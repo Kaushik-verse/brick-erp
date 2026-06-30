@@ -118,231 +118,256 @@ function drawSignaturesAndTerms(doc, y) {
 }
 
 /**
- * Generates an advanced multi-item sales invoice matching traditional Indian factory layouts.
- * Supports an array of items, optional transport/loading charges, and GST.
- * @param {object} params
- * @param {object} params.invoice - { invoiceNumber, date, type (CASH BILL / CREDIT BILL) }
- * @param {array} params.items - [{ description, quantity, rate, amount }]
- * @param {object} params.summary - { subtotal, transport, loading, unloading, discount, cgst, sgst, igst, grandTotal, amountPaid, balanceDue, paymentStatus, paymentChannel }
- * @param {object} params.customer - { name, phone, address }
- * @param {object} params.vehicle - { vehicleNumber, driverName, driverPhone } (optional)
- * @param {object} params.factory - Settings map with gstin, businessCategories, bankName, etc.
+ * Generates an advanced multi-item sales invoice with a PREMIUM MODERN design.
+ * Features Material 3 aesthetics: Rounded cards, soft colors, status badges.
  */
-export function generateInvoicePDF({ invoice, items, summary, customer, vehicle, factory }) {
+export function generateInvoicePDF({ invoice, items: passedItems, summary, customer, vehicle, factory, settings }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  let y = 10;
   
-  // Outer Border
-  doc.setLineWidth(0.5);
-  doc.setDrawColor(...RULE);
-  doc.rect(8, 8, 194, 281);
+  // Colors for Modern Design
+  const PRIMARY = [198, 93, 46]; // #C65D2E Brick Orange
+  const DARK = [30, 41, 59]; // #1E293B Slate 800
+  const GRAY = [100, 116, 139]; // #64748B Slate 500
+  const LIGHT_GRAY = [241, 245, 249]; // #F1F5F9 Slate 100
   
-  // ---- HEADER SECTION ----
-  doc.setFontSize(10);
-  doc.setTextColor(110, 114, 122);
-  if (factory.gstin) {
-    doc.text(`GSTIN: ${factory.gstin}`, 14, y + 5);
-  }
+  let y = 15;
   
-  // Right side tags
+  // ---- PREMIUM HEADER ----
+  doc.setFillColor(...LIGHT_GRAY);
+  doc.roundedRect(10, y, 190, 40, 3, 3, 'F');
+  
+  doc.setFontSize(24);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...INK);
-  doc.text(invoice.type || 'CASH BILL', 170, y + 5);
-  
-  y += 12;
-  
-  // Factory Name (Center)
-  doc.setFontSize(20);
-  doc.setTextColor(...ACCENT);
+  doc.setTextColor(...PRIMARY);
   const factoryText = factory.factoryName || 'Brick Factory';
-  const nameWidth = doc.getTextWidth(factoryText);
-  doc.text(factoryText, (210 - nameWidth) / 2, y);
+  doc.text(factoryText, 15, y + 15);
   
-  y += 5;
-  
-  // Business Categories
-  if (factory.businessCategories) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(110, 114, 122);
-    const catText = factory.businessCategories;
-    const catWidth = doc.getTextWidth(catText);
-    doc.text(catText, (210 - catWidth) / 2, y);
-    y += 5;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...GRAY);
+  if (settings?.showBusinessDescription !== '0' && factory.businessCategories) {
+    doc.text(factory.businessCategories, 15, y + 22);
   }
   
-  // Address & Phone
+  // Right side of Header
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...DARK);
+  doc.text('INVOICE', 195, y + 15, { align: 'right' });
+  
   doc.setFontSize(9);
-  const addressText = factory.factoryAddress || '';
-  const phoneText = factory.factoryPhone ? `Mobile: ${factory.factoryPhone}` : '';
-  const contactLine = [addressText, phoneText].filter(Boolean).join(' | ');
-  if (contactLine) {
-    const contactWidth = doc.getTextWidth(contactLine);
-    doc.text(contactLine, (210 - contactWidth) / 2, y);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...GRAY);
+  doc.text(`Invoice No: ${invoice.invoiceNumber || 'INV-0001'}`, 195, y + 23, { align: 'right' });
+  doc.text(`Date: ${formatDateDisplay(invoice.date)}`, 195, y + 28, { align: 'right' });
+  if (factory.gstin) {
+    doc.text(`GSTIN: ${factory.gstin}`, 195, y + 33, { align: 'right' });
   }
-  
-  y += 4;
-  
-  // Horizontal Rule
-  doc.setDrawColor(...RULE);
-  doc.setLineWidth(0.4);
-  doc.line(8, y, 202, y);
-  
-  y += 6;
-  
-  // ---- CUSTOMER & VEHICLE SECTION ----
+
+  y += 50;
+
+  // ---- CUSTOMER DETAILS (Left) & VEHICLE (Right) ----
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.setTextColor(...INK);
+  doc.setTextColor(...DARK);
+  doc.text('BILL TO:', 15, y);
   
-  // Left: Customer
-  doc.text(`Bill No: ${invoice.invoiceNumber}`, 14, y);
-  doc.text(`Date: ${formatDateDisplay(invoice.date)}`, 14, y + 5);
-  doc.text(`M/S: ${customer?.name || 'Walk-in Customer'}`, 14, y + 10);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text(customer?.name || 'Walk-in Customer', 15, y + 6);
+  
   doc.setFont('helvetica', 'normal');
-  if (customer?.address) doc.text(customer.address, 14, y + 15);
-  if (customer?.phone) doc.text(`Phone: ${customer.phone}`, 14, y + 20);
-  
-  // Right: Vehicle
-  if (vehicle && (vehicle.vehicleNumber || vehicle.driverName)) {
+  doc.setFontSize(10);
+  doc.setTextColor(...GRAY);
+  let cy = y + 12;
+  if (customer?.phone) { doc.text(`Phone: ${customer.phone}`, 15, cy); cy += 5; }
+  if (customer?.address) { doc.text(customer.address, 15, cy); }
+
+  // Vehicle / Additional info (Right)
+  if (vehicle && (vehicle.vehicleNumber || vehicle.driverName || vehicle.salesPerson)) {
     doc.setFont('helvetica', 'bold');
-    doc.text(`Vehicle No: ${vehicle.vehicleNumber || '-'}`, 130, y);
+    doc.setFontSize(10);
+    doc.setTextColor(...DARK);
+    doc.text('DELIVERY DETAILS:', 120, y);
+    
     doc.setFont('helvetica', 'normal');
-    doc.text(`Driver: ${vehicle.driverName || '-'}`, 130, y + 5);
-    if (vehicle.driverPhone) doc.text(`Driver Ph: ${vehicle.driverPhone}`, 130, y + 10);
+    doc.setTextColor(...GRAY);
+    let vy = y + 6;
+    if (settings?.showVehicleNumber !== '0' && vehicle.vehicleNumber) { doc.text(`Vehicle: ${vehicle.vehicleNumber}`, 120, vy); vy += 5; }
+    if (settings?.showDriverName !== '0' && vehicle.driverName) { doc.text(`Driver: ${vehicle.driverName}`, 120, vy); vy += 5; }
+    if (settings?.showSalesPerson !== '0' && vehicle.salesPerson) { doc.text(`Sales: ${vehicle.salesPerson}`, 120, vy); vy += 5; }
   }
-  
-  y += 26;
-  
-  // ---- ITEM TABLE ----
-  const tableData = items.map((item, index) => [
-    index + 1,
-    item.description,
-    item.quantity,
+
+  y += 30;
+
+  // ---- DYNAMIC PRODUCT TABLE ----
+  // Normalize items array (handle legacy single-item structures)
+  const itemsArray = passedItems && passedItems.length > 0 
+    ? passedItems 
+    : [{ description: invoice.brickSize, quantity: invoice.quantity, rate: invoice.rate, amount: invoice.totalAmount }];
+
+  const tableData = itemsArray.map((item, index) => [
+    (index + 1).toString().padStart(2, '0'),
+    item.description || '-',
+    item.quantity?.toLocaleString() || '0',
     pdfCurrency(item.rate),
-    pdfCurrency(item.amount)
+    pdfCurrency(item.amount || (item.quantity * item.rate))
   ]);
-  
+
   doc.autoTable({
     startY: y,
-    head: [['S.No', 'Type of Brick', 'Quantity (Pcs)', 'Unit Price', 'Amount']],
+    head: [['#', 'Item Description', 'Qty', 'Rate', 'Amount']],
     body: tableData,
-    theme: 'grid',
-    styles: { font: 'helvetica', fontSize: 9.5, textColor: INK, cellPadding: 3 },
-    headStyles: {
-      fillColor: ACCENT,
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'center'
-    },
-    columnStyles: {
-      0: { halign: 'center', cellWidth: 15 },
-      1: { halign: 'left' },
-      2: { halign: 'right', cellWidth: 35 },
-      3: { halign: 'right', cellWidth: 35 },
-      4: { halign: 'right', cellWidth: 35 },
-    },
-    tableLineColor: RULE,
-    tableLineWidth: 0.2,
-    margin: { left: 10, right: 10 }
-  });
-  
-  let finalY = doc.lastAutoTable.finalY + 2;
-  
-  // ---- SUMMARY SECTION ----
-  const summaryRows = [];
-  if (summary.subtotal && summary.subtotal !== summary.grandTotal) {
-    summaryRows.push(['Subtotal', pdfCurrency(summary.subtotal)]);
-  }
-  if (summary.transport) summaryRows.push(['Transport Charges', pdfCurrency(summary.transport)]);
-  if (summary.loading) summaryRows.push(['Loading Charges', pdfCurrency(summary.loading)]);
-  if (summary.unloading) summaryRows.push(['Unloading Charges', pdfCurrency(summary.unloading)]);
-  if (summary.discount) summaryRows.push(['Discount', `-${pdfCurrency(summary.discount)}`]);
-  if (summary.cgst) summaryRows.push(['CGST', pdfCurrency(summary.cgst)]);
-  if (summary.sgst) summaryRows.push(['SGST', pdfCurrency(summary.sgst)]);
-  if (summary.igst) summaryRows.push(['IGST', pdfCurrency(summary.igst)]);
-  
-  summaryRows.push(['Grand Total', pdfCurrency(summary.grandTotal)]);
-  
-  doc.autoTable({
-    startY: finalY,
-    body: summaryRows,
     theme: 'plain',
-    styles: { font: 'helvetica', fontSize: 9.5, cellPadding: 2 },
+    styles: { font: 'helvetica', fontSize: 10, cellPadding: 4 },
+    headStyles: { fillColor: DARK, textColor: [255, 255, 255], fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: LIGHT_GRAY },
     columnStyles: {
-      0: { halign: 'right', cellWidth: 140, textColor: [110, 114, 122] },
-      1: { halign: 'right', cellWidth: 44, fontStyle: 'bold', textColor: ACCENT },
+      0: { cellWidth: 15, textColor: GRAY },
+      1: { cellWidth: 80, textColor: DARK, fontStyle: 'bold' },
+      2: { halign: 'right', textColor: DARK },
+      3: { halign: 'right', textColor: GRAY },
+      4: { halign: 'right', textColor: DARK, fontStyle: 'bold' },
     },
     margin: { left: 10, right: 10 }
   });
+
+  let finalY = doc.lastAutoTable.finalY + 10;
+
+  // ---- SUMMARY SECTION (White Card with Shadow look) ----
+  // To keep it simple in jsPDF, we draw a rounded rectangle
+  doc.setFillColor(...LIGHT_GRAY);
+  doc.roundedRect(110, finalY, 90, 75, 3, 3, 'F');
   
-  finalY = doc.lastAutoTable.finalY + 8;
+  let sy = finalY + 8;
+  const drawRow = (label, value, isBold = false, isAccent = false) => {
+    doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(...(isAccent ? PRIMARY : (isBold ? DARK : GRAY)));
+    doc.text(label, 115, sy);
+    doc.text(value, 195, sy, { align: 'right' });
+    sy += 7;
+  };
+
+  const stotal = summary.subtotal || itemsArray.reduce((sum, it) => sum + (it.amount || (it.quantity * it.rate)), 0);
   
-  // ---- PAYMENT INFO ----
+  drawRow('Subtotal', pdfCurrency(stotal));
+  
+  if (settings?.showDiscount !== '0' && summary.discount) {
+    drawRow('Discount', `-${pdfCurrency(summary.discount)}`, false, true);
+  }
+  
+  if (settings?.showTransport !== '0' && summary.transportCharges) drawRow('Transport', pdfCurrency(summary.transportCharges));
+  if (settings?.showLoading !== '0' && summary.loadingCharges) drawRow('Loading', pdfCurrency(summary.loadingCharges));
+  if (settings?.showUnloading !== '0' && summary.unloadingCharges) drawRow('Unloading', pdfCurrency(summary.unloadingCharges));
+  if (settings?.showOtherCharges !== '0' && summary.otherCharges) drawRow('Other', pdfCurrency(summary.otherCharges));
+  
+  if (settings?.showGST !== '0' && summary.cgst) {
+    drawRow('CGST', pdfCurrency(summary.cgst));
+    drawRow('SGST', pdfCurrency(summary.sgst));
+  }
+
+  // Grand Total Line
+  sy += 2;
+  doc.setDrawColor(...GRAY);
+  doc.setLineWidth(0.2);
+  doc.line(115, sy - 5, 195, sy - 5);
+  
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...DARK);
+  doc.text('Grand Total', 115, sy);
+  doc.setTextColor(...PRIMARY);
+  doc.text(pdfCurrency(summary.grandTotal || summary.totalAmount), 195, sy, { align: 'right' });
+
+  // Paid / Balance
+  sy += 8;
+  doc.setFontSize(10);
+  doc.setTextColor(...GRAY);
+  doc.text('Paid Amount', 115, sy);
+  doc.text(pdfCurrency(summary.amountPaid), 195, sy, { align: 'right' });
+  sy += 7;
+  
+  const bal = summary.balanceDue !== undefined ? summary.balanceDue : ((summary.grandTotal || summary.totalAmount) - summary.amountPaid);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...DARK);
+  doc.text('Balance Due', 115, sy);
+  doc.setTextColor(bal > 0 ? 239 : 34, bal > 0 ? 68 : 197, bal > 0 ? 68 : 94); // Red if > 0, Green if 0
+  doc.text(pdfCurrency(bal), 195, sy, { align: 'right' });
+
+  // ---- LEFT SIDE (QR, Bank, Payment Status) ----
+  let leftY = finalY + 5;
+  
+  // Payment Status Badge
+  const pStatus = summary.paymentStatus || (bal <= 0 ? 'paid' : (summary.amountPaid > 0 ? 'partial' : 'pending'));
+  const badgeColor = pStatus === 'paid' ? [34, 197, 94] : pStatus === 'partial' ? [249, 115, 22] : [239, 68, 68];
+  doc.setFillColor(...badgeColor);
+  doc.roundedRect(15, leftY, 25, 8, 2, 2, 'F');
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.setTextColor(110, 114, 122);
-  doc.text(`Payment Status: ${(summary.paymentStatus || 'pending').toUpperCase()} (${summary.paymentChannel || 'N/A'})`, 14, finalY);
+  doc.setTextColor(255, 255, 255);
+  doc.text(pStatus.toUpperCase(), 27.5, leftY + 5.5, { align: 'center' });
   
-  if (summary.balanceDue > 0) {
-    doc.setTextColor(...ACCENT);
-    doc.text(`Amount Paid: ${pdfCurrency(summary.amountPaid)}`, 14, finalY + 5);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Balance Due: ${pdfCurrency(summary.balanceDue)}`, 14, finalY + 10);
-  }
-  
-  finalY += 20;
-  
-  // Check page break for footer
-  if (finalY > 230) {
-    doc.addPage();
-    doc.setLineWidth(0.5);
-    doc.setDrawColor(...RULE);
-    doc.rect(8, 8, 194, 281);
-    finalY = 20;
-  }
-  
-  // ---- FOOTER BLOCK ----
-  // Bank Details (Left)
-  if (factory.bankName || factory.upiId) {
+  leftY += 15;
+
+  if (settings?.showBankDetails !== '0' && factory.accountNumber) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.setTextColor(...INK);
-    doc.text('Bank Details:', 14, finalY);
+    doc.setTextColor(...DARK);
+    doc.text('BANK DETAILS', 15, leftY);
     doc.setFont('helvetica', 'normal');
-    let by = finalY + 5;
-    if (factory.bankName) { doc.text(`Bank: ${factory.bankName}`, 14, by); by += 5; }
-    if (factory.accountNumber) { doc.text(`A/C No: ${factory.accountNumber}`, 14, by); by += 5; }
-    if (factory.ifscCode) { doc.text(`IFSC: ${factory.ifscCode}`, 14, by); by += 5; }
-    if (factory.upiId) { doc.text(`UPI: ${factory.upiId}`, 14, by); by += 5; }
+    doc.setTextColor(...GRAY);
+    doc.text(`Bank: ${factory.bankName}`, 15, leftY + 5);
+    doc.text(`A/C: ${factory.accountNumber}`, 15, leftY + 10);
+    doc.text(`IFSC: ${factory.ifscCode}`, 15, leftY + 15);
+    leftY += 25;
+  }
+
+  // QR Code Image
+  if (settings?.showQRCode !== '0' && settings?.qrCodeImage) {
+    try {
+      doc.addImage(settings.qrCodeImage, 'JPEG', 15, leftY, 35, 35);
+      doc.setFontSize(8);
+      doc.setTextColor(...GRAY);
+      doc.text('Scan to Pay', 32.5, leftY + 39, { align: 'center' });
+    } catch (e) {
+      console.warn('Failed to embed QR code image', e);
+    }
+  }
+
+  // ---- FOOTER & SIGNATURES ----
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let footY = pageHeight - 35;
+  
+  if (settings?.showTerms !== '0') {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...DARK);
+    doc.text('Terms & Conditions:', 15, footY);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...GRAY);
+    doc.text('1. Goods once sold will not be taken back.', 15, footY + 4);
+    doc.text('2. Payment must be completed within agreed period.', 15, footY + 8);
+  }
+
+  if (settings?.showCompanySignature !== '0') {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text(`For ${factory.factoryName || 'Company'}`, 195, footY, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...GRAY);
+    doc.text('Authorized Signatory', 195, footY + 15, { align: 'right' });
   }
   
-  // Terms & Conditions (Middle)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(110, 114, 122);
-  doc.text('Terms & Conditions:', 80, finalY);
-  doc.setFont('helvetica', 'normal');
-  doc.text('1. Goods once sold will not be taken back.', 80, finalY + 5);
-  doc.text('2. Payment within agreed credit period.', 80, finalY + 10);
-  doc.text('3. Delay attracts interest as agreed.', 80, finalY + 15);
-  doc.text('4. Subject to local jurisdiction.', 80, finalY + 20);
-  
-  // Signature (Right)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...ACCENT);
-  const sigText = 'For ' + (factory.factoryName || 'Jaya Vasavi Industries');
-  const sigWidth = doc.getTextWidth(sigText);
-  doc.text(sigText, 190 - sigWidth, finalY);
-  
-  doc.setFontSize(8);
-  doc.setTextColor(150, 153, 160);
-  doc.text('Authorized Signature', 190 - doc.getTextWidth('Authorized Signature'), finalY + 20);
-  
-  doc.setDrawColor(...RULE);
-  doc.line(140, finalY + 16, 194, finalY + 16);
-  
-  drawFooter(doc);
+  if (settings?.showCustomerSignature !== '0') {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text('Customer Signature', 100, footY + 15, { align: 'center' });
+  }
+
   return doc.output('blob');
 }
 

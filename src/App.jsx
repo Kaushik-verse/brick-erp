@@ -7,6 +7,7 @@ import ProductionScreen from './features/production/ProductionScreen';
 import InventoryScreen from './features/inventory/InventoryScreen';
 import SalesScreen from './features/sales/SalesScreen';
 import PurchasesScreen from './features/purchases/PurchasesScreen';
+import InvoiceBuilderScreen from './features/sales/InvoiceBuilderScreen';
 import MoreScreen from './features/dashboard/MoreScreen';
 import ExpensesScreen from './features/expenses/ExpensesScreen';
 import DocumentHubScreen from './features/documents/DocumentHubScreen';
@@ -15,6 +16,7 @@ import SettingsScreen from './features/dashboard/SettingsScreen';
 import MasterSettingsScreen from './features/dashboard/MasterSettingsScreen';
 import RecipeSettingsScreen from './features/dashboard/RecipeSettingsScreen';
 import DataMigrationScreen from './features/dashboard/DataMigrationScreen';
+import InvoiceSettingsScreen from './features/settings/InvoiceSettingsScreen';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
@@ -139,7 +141,7 @@ export default function App() {
       case 'inventory':
         return <InventoryScreen />;
       case 'sales':
-        return <SalesScreen />;
+        return <SalesScreen onNavigate={setSubScreen} />;
       case 'purchases':
         return <PurchasesScreen />;
       case 'more':
@@ -165,6 +167,10 @@ export default function App() {
         return <RecipeSettingsScreen onBack={() => setSubScreen('settings')} />;
       case 'data-migration':
         return <DataMigrationScreen onBack={() => setSubScreen('settings')} />;
+      case 'invoice-settings':
+        return <InvoiceSettingsScreen onBack={() => setSubScreen('settings')} />;
+      case 'invoice-builder':
+        return <InvoiceBuilderScreen onBack={() => setSubScreen(null)} />;
       default:
         return null;
     }

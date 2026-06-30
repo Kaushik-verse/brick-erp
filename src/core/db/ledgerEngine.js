@@ -302,11 +302,23 @@ export async function deleteSale(saleId) {
       throw new Error('Cannot delete: Collections have been recorded after this sale.');
     }
 
-    const stock = await db.finishedStock.where('brickSize').equals(sale.brickSize).first();
-    if (stock) {
-      await db.finishedStock.update(stock.id, {
-        currentStock: round2(stock.currentStock + sale.quantity),
-      });
+    if (sale.items && Array.isArray(sale.items)) {
+      for (const item of sale.items) {
+        const stock = await db.finishedStock.where('brickSize').equals(item.description).first();
+        if (stock) {
+          await db.finishedStock.update(stock.id, {
+            currentStock: round2(stock.currentStock + (item.quantity || 0)),
+          });
+        }
+      }
+    } else if (sale.brickSize) {
+      // Legacy single-item sale
+      const stock = await db.finishedStock.where('brickSize').equals(sale.brickSize).first();
+      if (stock) {
+        await db.finishedStock.update(stock.id, {
+          currentStock: round2(stock.currentStock + sale.quantity),
+        });
+      }
     }
 
     const customer = await db.customers.get(sale.customerId);
