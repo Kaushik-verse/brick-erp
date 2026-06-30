@@ -117,10 +117,7 @@ function drawSignaturesAndTerms(doc, y) {
   return y + 25;
 }
 
-// Minimal brick icon SVG as base64 for logo
-const BRICK_LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAACXBIWXMAAAsTAAALEwEAmpwYAAABH0lEQVR4nO2XQQ6CMBBFhwTj1qVn4MIFuHLlATx/D+Ah9EaXbK0r0zKFGImJL/mTNvT102k7BUEQhI9gO2fXnHO32WzO9yC754yQpQghzO12q+f7Vzjnzpxzd4xxuVymR2A7Z0v2kH+H/G8J6hF0g64RdEO1CGOMa85fUoQQoP8s+t6/tPdvO13n3E32kC/vM/n/EaAedIOuEXRDtwiz+7zT9/5F0A26RtANukbQDZ0idD0I0A26RtANukbQDbpFmN3nHXN+EaAbdI2gG3SNoBs6Reh6EKAbdI2gG3SNoBt0izC7zzvm/CJAN+gaQTfoGkE3dIrQ9SBAN+gaQTfoGkE36BZhdp93zPlFgG7QNYJu0DWCbugUoetBgG7QNYJu0DWCbgjCT/IBXmD/Z38wQ6EAAAAASUVORK5CYII=";
-
-
+// Removed corrupted base64 PNG
 export function generateInvoicePDF({ invoice, items: passedItems, summary, customer, vehicle, factory, settings }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   
@@ -150,8 +147,15 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
   doc.setFillColor(...LIGHT_GRAY);
   doc.roundedRect(marginLeft, y, contentWidth, 40, 3, 3, 'F');
   
-  // Logo
-  doc.addImage(BRICK_LOGO, 'PNG', marginLeft + 5, y + 7, 8, 8);
+  // Vector Brick Logo
+  doc.setFillColor(...PRIMARY);
+  doc.rect(marginLeft + 5, y + 9, 8, 5, 'F');
+  doc.setDrawColor(255, 255, 255);
+  doc.setLineWidth(0.3);
+  doc.line(marginLeft + 5, y + 11.5, marginLeft + 13, y + 11.5);
+  doc.line(marginLeft + 9, y + 9, marginLeft + 9, y + 11.5);
+  doc.line(marginLeft + 7, y + 11.5, marginLeft + 7, y + 14);
+  doc.line(marginLeft + 11, y + 11.5, marginLeft + 11, y + 14);
   
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');

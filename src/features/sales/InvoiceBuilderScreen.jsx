@@ -223,13 +223,10 @@ Regards,
             {!showNewCustomer ? (
               <div>
                 <Label>Select Customer</Label>
-                <div className="flex gap-2">
-                  <Select value={selectedCustomerId} onChange={e => setSelectedCustomerId(e.target.value)}>
-                    <option value="">Choose customer...</option>
-                    {(customers || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </Select>
-                  <button onClick={() => setShowNewCustomer(true)} className="px-3 rounded-lg bg-slate-100 text-[#C65D2E] flex items-center justify-center shrink-0 border border-slate-200"><UserPlus size={16}/></button>
-                </div>
+                <Select value={selectedCustomerId} onChange={e => setSelectedCustomerId(e.target.value)}>
+                  <option value="">Choose customer...</option>
+                  {(customers || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </Select>
               </div>
             ) : (
               <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
