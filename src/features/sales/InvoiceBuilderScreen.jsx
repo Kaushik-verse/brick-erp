@@ -197,9 +197,9 @@ export default function InvoiceBuilderScreen({ onBack }) {
 
   // ----- STYLED COMPONENTS (Moved Out) -----
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-32">
+    <div className="min-h-screen bg-[#F8FAFC] pb-48">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-4 py-4 flex items-center gap-3 sticky top-0 z-10 shadow-sm">
+      <div className="bg-white border-b border-slate-200 px-4 pt-safe-header pb-4 flex items-center gap-3 sticky top-0 z-10 shadow-sm">
         <button onClick={onBack} className="p-2 rounded-full bg-slate-100 text-slate-600 active:scale-95 transition-transform">
           <ArrowLeft size={18} />
         </button>
@@ -422,7 +422,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
       </div>
 
       {/* FAB Footer */}
-      <div className="fixed bottom-0 left-0 md:left-64 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 flex gap-3 z-50">
+      <div className="fixed bottom-[80px] left-0 md:left-64 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 flex gap-3 z-50">
         {!isExisting && (
           <button onClick={() => handleSaveInvoice(false, false)} disabled={saving} className="flex-1 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors">
             <Save size={18}/> {saving ? 'Saving...' : 'Save Only'}

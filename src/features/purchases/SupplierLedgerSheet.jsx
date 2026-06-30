@@ -124,15 +124,6 @@ export default function SupplierLedgerSheet({ open, onClose, supplierId }) {
               icon={MessageCircle}
               disabled={supplier.outstandingBalance <= 0}
               className="!bg-[#25D366] !from-[#25D366] !to-[#1FAF54] !border-[#25D366]/40 px-0"
-              style={{ paddingLeft: 0, paddingRight: 0 }}
-            />
-            <GlassButton
-              variant="glass"
-              fullWidth
-              onClick={handleExportStatement}
-              icon={FileText}
-              disabled={sending}
-              style={{ paddingLeft: 0, paddingRight: 0 }}
             />
           </div>
         </div>

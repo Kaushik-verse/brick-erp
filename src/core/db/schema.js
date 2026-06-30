@@ -148,6 +148,41 @@ export class BrickERPDatabase extends Dexie {
       }
     });
 
+    this.version(9).stores({
+      // No schema change
+    }).upgrade(async tx => {
+      // Re-run company details population for anyone who missed v8 due to migration crash
+      const updates = {
+        factoryAddress: '187/3, 30th Ward, Chinamamidipalli, Narsapur - 534275, West Godavari',
+        gstin: '37ACZPC2957R1Z',
+        bankName: 'State Bank of India (SBI)',
+        accountNumber: '36943340813',
+        ifscCode: 'SBIN0000885',
+        factoryPhone: '9848174346, 9502266200',
+        businessCategories: 'Manufacturers of Fal-G Fly Ash Bricks, RCC Pipes, and Cement Products'
+      };
+
+      const existingItems = await tx.table('settings').toArray();
+      const existingKeys = new Set(existingItems.map(item => item.key));
+      const toAdd = [];
+
+      await tx.table('settings').toCollection().modify(item => {
+        if (updates[item.key] !== undefined) {
+          item.value = updates[item.key];
+        }
+      });
+
+      for (const key of Object.keys(updates)) {
+        if (!existingKeys.has(key)) {
+          toAdd.push({ key, value: updates[key] });
+        }
+      }
+
+      if (toAdd.length > 0) {
+        await tx.table('settings').bulkAdd(toAdd);
+      }
+    });
+
     this.customers = this.table('customers');
     this.suppliers = this.table('suppliers');
     this.rawMaterials = this.table('rawMaterials');
