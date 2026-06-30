@@ -27,9 +27,10 @@ public class WidgetPlugin extends Plugin {
         editor.putString("kpis", kpiData);
         editor.apply();
 
-        // Broadcast to both widgets to update
+        // Broadcast to all widgets to update
         updateWidget(context, SummaryWidgetProvider.class);
         updateWidget(context, DashboardWidgetProvider.class);
+        updateWidget(context, StockWidgetProvider.class);
 
         call.resolve();
     }

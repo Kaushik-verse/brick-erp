@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
 import { calculateAgingDays } from '../db/ledgerEngine';
@@ -170,12 +171,16 @@ export function useDashboardKPIs(rangeStart, rangeEnd) {
       productionRuns: production.length,
     };
 
-    if (Capacitor.isNativePlatform()) {
-      WidgetPlugin.syncKpis({ data: JSON.stringify(kpiData) }).catch(console.error);
-    }
-
     return kpiData;
   }, [rangeStart, rangeEnd], null);
+
+  useEffect(() => {
+    if (kpis && Capacitor.isNativePlatform()) {
+      WidgetPlugin.syncKpis({ data: JSON.stringify(kpis) }).catch(console.error);
+    }
+  }, [kpis]);
+
+  return kpis;
 }
 
 /** Invoice settings map (key -> value) */
