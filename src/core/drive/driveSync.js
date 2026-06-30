@@ -45,6 +45,7 @@ export async function exportDatabaseSnapshot() {
     units,
     vehicles,
     drivers,
+    invoiceSettings,
   ] = await Promise.all([
     db.customers.toArray(),
     db.suppliers.toArray(),
@@ -61,6 +62,7 @@ export async function exportDatabaseSnapshot() {
     db.units.toArray(),
     db.vehicles.toArray(),
     db.drivers.toArray(),
+    db.invoiceSettings.toArray(),
   ]);
 
   return {
@@ -82,6 +84,7 @@ export async function exportDatabaseSnapshot() {
       units,
       vehicles,
       drivers,
+      invoiceSettings,
     },
   };
 }
@@ -112,6 +115,7 @@ export async function restoreDatabaseSnapshot(snapshot) {
     db.units,
     db.vehicles,
     db.drivers,
+    db.invoiceSettings,
     async () => {
       await Promise.all([
         db.customers.clear(),
@@ -129,6 +133,7 @@ export async function restoreDatabaseSnapshot(snapshot) {
         db.units.clear(),
         db.vehicles.clear(),
         db.drivers.clear(),
+        db.invoiceSettings.clear(),
       ]);
 
       await Promise.all([
@@ -147,6 +152,7 @@ export async function restoreDatabaseSnapshot(snapshot) {
         data.units?.length && db.units.bulkAdd(data.units),
         data.vehicles?.length && db.vehicles.bulkAdd(data.vehicles),
         data.drivers?.length && db.drivers.bulkAdd(data.drivers),
+        data.invoiceSettings?.length && db.invoiceSettings.bulkAdd(data.invoiceSettings),
       ]);
     }
   );

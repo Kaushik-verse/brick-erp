@@ -106,7 +106,7 @@ export class BrickERPDatabase extends Dexie {
       // No schema change
     }).upgrade(async tx => {
       // User requested all invoice settings to be enabled by default
-      await tx.table('invoiceSettings').modify(item => {
+      await tx.table('invoiceSettings').toCollection().modify(item => {
         if (item.key !== 'qrCodeImage') {
           item.value = '1';
         }
@@ -131,7 +131,7 @@ export class BrickERPDatabase extends Dexie {
       const existingKeys = new Set(existingItems.map(item => item.key));
       const toAdd = [];
 
-      await tx.table('settings').modify(item => {
+      await tx.table('settings').toCollection().modify(item => {
         if (updates[item.key] !== undefined) {
           item.value = updates[item.key];
         }
