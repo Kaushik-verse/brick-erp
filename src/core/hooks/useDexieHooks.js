@@ -152,7 +152,7 @@ export function useDashboardKPIs(rangeStart, rangeEnd) {
         .reduce((sum, p) => sum + p.amountPaid, 0) +
       supplierPayments.filter(p => p.paymentChannel === 'cash').reduce((sum, p) => sum + p.amount, 0);
 
-    const kpiData = {
+    return {
       totalSales,
       totalCollected,
       totalPurchases,
@@ -170,14 +170,23 @@ export function useDashboardKPIs(rangeStart, rangeEnd) {
       salesCount: sales.length,
       productionRuns: production.length,
     };
-
-    return kpiData;
   }, [rangeStart, rangeEnd], null);
 
+  // Sync KPIs to native Android widgets whenever data changes
   useEffect(() => {
-    if (kpis && Capacitor.isNativePlatform()) {
-      WidgetPlugin.syncKpis({ data: JSON.stringify(kpis) }).catch(console.error);
+    if (!kpis) {
+      console.log('[WidgetSync] kpis is null, skipping');
+      return;
     }
+    if (!Capacitor.isNativePlatform()) {
+      console.log('[WidgetSync] Not native platform, skipping');
+      return;
+    }
+    const jsonStr = JSON.stringify(kpis);
+    console.log('[WidgetSync] Pushing to native:', jsonStr.substring(0, 120));
+    WidgetPlugin.syncKpis({ data: jsonStr })
+      .then(() => console.log('[WidgetSync] Native sync successful'))
+      .catch((err) => console.error('[WidgetSync] Native sync FAILED:', err));
   }, [kpis]);
 
   return kpis;

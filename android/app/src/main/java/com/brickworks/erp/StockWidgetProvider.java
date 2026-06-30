@@ -6,9 +6,9 @@ import android.appwidget.AppWidgetProvider;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.util.Log;
 import android.widget.RemoteViews;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.text.NumberFormat;
@@ -16,47 +16,51 @@ import java.util.Locale;
 
 public class StockWidgetProvider extends AppWidgetProvider {
 
-    @Override
-    public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
-        SharedPreferences prefs = context.getSharedPreferences("WidgetData", Context.MODE_PRIVATE);
-        String kpisStr = prefs.getString("kpis", "{}");
-        JSONObject kpis;
-        try {
-            kpis = new JSONObject(kpisStr);
-        } catch (JSONException e) {
-            kpis = new JSONObject();
-        }
+    private static final String TAG = "StockWidget";
 
-        for (int appWidgetId : appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId, kpis);
+    @Override
+    public void onUpdate(Context context, AppWidgetManager mgr, int[] ids) {
+        String json = readKpiJson(context);
+        for (int id : ids) {
+            updateAppWidget(context, mgr, id, parseJson(json));
         }
     }
 
-    static void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId, JSONObject kpis) {
-        RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_stock);
-
+    static void updateAppWidget(Context ctx, AppWidgetManager mgr, int id, JSONObject kpis) {
+        RemoteViews views = new RemoteViews(ctx.getPackageName(), R.layout.widget_stock);
         try {
+            NumberFormat cur = NumberFormat.getCurrencyInstance(new Locale("en", "IN"));
+            cur.setMaximumFractionDigits(0);
+
+            NumberFormat num = NumberFormat.getNumberInstance(new Locale("en", "IN"));
+            num.setMaximumFractionDigits(0);
+
+            double stock    = kpis.optDouble("finishedStockValue", 0);
             double produced = kpis.optDouble("totalProduced", 0);
-            double stock = kpis.optDouble("finishedStockValue", 0);
 
-            NumberFormat format = NumberFormat.getCurrencyInstance(new Locale("en", "IN"));
-            format.setMaximumFractionDigits(0);
-            
-            NumberFormat numFormat = NumberFormat.getNumberInstance(new Locale("en", "IN"));
-            numFormat.setMaximumFractionDigits(0);
+            views.setTextViewText(R.id.val_stock, cur.format(stock));
+            views.setTextViewText(R.id.val_produced, num.format(produced));
 
-            views.setTextViewText(R.id.val_produced, numFormat.format(produced));
-            views.setTextViewText(R.id.val_stock, format.format(stock));
-
+            Log.d(TAG, "Updated: stock=" + stock + " produced=" + produced);
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e(TAG, "Error updating widget", e);
         }
 
         // Tap to open app
-        Intent intent = new Intent(context, MainActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        views.setOnClickPendingIntent(R.id.widget_container, pendingIntent);
+        Intent intent = new Intent(ctx, MainActivity.class);
+        PendingIntent pi = PendingIntent.getActivity(ctx, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        views.setOnClickPendingIntent(R.id.widget_container, pi);
 
-        appWidgetManager.updateAppWidget(appWidgetId, views);
+        mgr.updateAppWidget(id, views);
+    }
+
+    private static String readKpiJson(Context ctx) {
+        SharedPreferences prefs = ctx.getSharedPreferences("WidgetData", Context.MODE_PRIVATE);
+        return prefs.getString("kpis", "{}");
+    }
+
+    private static JSONObject parseJson(String s) {
+        try { return new JSONObject(s); } catch (Exception e) { return new JSONObject(); }
     }
 }
