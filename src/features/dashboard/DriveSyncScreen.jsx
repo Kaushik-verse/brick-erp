@@ -25,7 +25,14 @@ import { Capacitor } from '@capacitor/core';
  */
 export default function DriveSyncScreen({ onBack }) {
   const pushToast = useUIStore((s) => s.pushToast);
-  const [accessToken, setAccessToken] = useState('');
+  const [accessToken, setAccessToken] = useState(() => {
+    const cached = localStorage.getItem('gdrive_token');
+    const expiry = localStorage.getItem('gdrive_token_expiry');
+    if (cached && expiry && Date.now() < Number(expiry)) {
+      return cached;
+    }
+    return '';
+  });
   const [lastSync, setLastSync] = useState(null);
   const [busy, setBusy] = useState(false);
   const fileInputRef = useRef(null);
@@ -73,6 +80,8 @@ export default function DriveSyncScreen({ onBack }) {
         
         if (token) {
           setAccessToken(token);
+          localStorage.setItem('gdrive_token', token);
+          localStorage.setItem('gdrive_token_expiry', Date.now() + 50 * 60 * 1000);
           pushToast('Connected to Google Drive', 'success');
         } else {
           throw new Error('Sign in failed (no token)');
@@ -80,7 +89,10 @@ export default function DriveSyncScreen({ onBack }) {
       } else {
         const user = await GoogleAuth.signIn();
         if (user?.authentication?.accessToken || user?.accessToken) {
-          setAccessToken(user.authentication?.accessToken || user.accessToken);
+          const t = user.authentication?.accessToken || user.accessToken;
+          setAccessToken(t);
+          localStorage.setItem('gdrive_token', t);
+          localStorage.setItem('gdrive_token_expiry', Date.now() + 50 * 60 * 1000);
           pushToast('Connected to Google Drive', 'success');
         } else {
           throw new Error('Sign in failed (no token)');
