@@ -145,8 +145,18 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...GRAY);
+  
+  let leftHeaderY = y + 22;
   if (settings?.showBusinessDescription !== '0' && factory.businessCategories) {
-    doc.text(factory.businessCategories, 15, y + 22);
+    doc.text(factory.businessCategories, 15, leftHeaderY);
+    leftHeaderY += 5;
+  }
+  if (factory.factoryAddress) {
+    doc.text(factory.factoryAddress, 15, leftHeaderY);
+    leftHeaderY += 5;
+  }
+  if (factory.factoryPhone) {
+    doc.text(`Phone: ${factory.factoryPhone}`, 15, leftHeaderY);
   }
   
   // Right side of Header

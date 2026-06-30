@@ -159,21 +159,6 @@ export default function SettingsScreen({ onBack, onNavigate }) {
           <GlassButton variant="glass" fullWidth onClick={() => onNavigate('data-migration')} icon={Database}>
             Import Data from Excel
           </GlassButton>
-          <div className="mt-2">
-            <GlassButton variant="glass" fullWidth onClick={() => onNavigate('master-settings')} icon={Database}>
-              Manage Master Data (Products, Materials)
-            </GlassButton>
-          </div>
-          <div className="mt-2">
-            <GlassButton variant="glass" fullWidth onClick={() => onNavigate('invoice-settings')}>
-              Invoice Configuration
-            </GlassButton>
-          </div>
-          <div className="mt-2">
-            <GlassButton variant="glass" fullWidth onClick={() => onNavigate('recipe-settings')}>
-              Manage Brick Recipes
-            </GlassButton>
-          </div>
           <div className="pt-3 border-t border-ledger-overdue/20">
             <button 
               onClick={handleFactoryReset}

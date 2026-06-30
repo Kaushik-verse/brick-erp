@@ -212,7 +212,22 @@ export default function InvoiceBuilderScreen({ onBack, prefillCustomer = null })
         
         if (andShare) {
           // Generate WhatsApp Text
-          const text = `*INVOICE: ${invNum}*\n*Amount:* ₹${grandTotal.toLocaleString()}\n*Status:* ${paymentStatus.toUpperCase()}\n\nThank you for your business!`;
+          let itemsText = payload.items.map((it, idx) => `${idx + 1}. ${it.description} (${it.quantity} @ ₹${it.rate}) = ₹${it.amount}`).join('\n');
+          
+          let chargesText = '';
+          if (payload.discount > 0) chargesText += `\n*Discount:* -₹${payload.discount.toLocaleString()}`;
+          if (payload.transportCharges > 0) chargesText += `\n*Transport:* ₹${payload.transportCharges.toLocaleString()}`;
+          if (payload.loadingCharges > 0) chargesText += `\n*Loading:* ₹${payload.loadingCharges.toLocaleString()}`;
+          if (payload.unloadingCharges > 0) chargesText += `\n*Unloading:* ₹${payload.unloadingCharges.toLocaleString()}`;
+          if (payload.otherCharges > 0) chargesText += `\n*Other:* ₹${payload.otherCharges.toLocaleString()}`;
+          if (payload.cgst > 0) chargesText += `\n*GST:* ₹${(payload.cgst * 2).toLocaleString()}`;
+
+          let bankText = '';
+          if (factorySettings.bankName && factorySettings.accountNumber) {
+            bankText = `\n\n🏦 *BANK DETAILS:*\nBank: ${factorySettings.bankName}\nA/C: ${factorySettings.accountNumber}\nIFSC: ${factorySettings.ifscCode}`;
+          }
+
+          const text = `🏢 *${factorySettings.factoryName || 'Company Name'}*\n\n📄 *INVOICE NO:* ${invNum}\n📅 *DATE:* ${date}\n\n👤 *BILL TO:*\n${cust ? cust.name : newCustomerName}\n\n🛍️ *ITEMS:*\n${itemsText}\n-----------------------\n*Subtotal:* ₹${subtotal.toLocaleString()}${chargesText}\n*Grand Total:* ₹${grandTotal.toLocaleString()}\n-----------------------\n💰 *STATUS:* ${paymentStatus.toUpperCase()}\n*Balance Due:* ₹${balanceDue.toLocaleString()}${bankText}\n\nThank you for your business!`;
           
           if (Capacitor.isNativePlatform()) {
             await saveAndShareBlob(pdfBlob, `${invNum}.pdf`, 'application/pdf', text);
@@ -383,49 +398,40 @@ export default function InvoiceBuilderScreen({ onBack, prefillCustomer = null })
                 <span className="font-bold text-slate-800">₹{subtotal.toLocaleString()}</span>
               </div>
 
-              {settings?.showDiscount === '1' && (
-                <div className="flex items-center gap-2">
-                  <Select value={discountType} onChange={e=>setDiscountType(e.target.value)} className="!py-1 !text-xs w-28 !bg-slate-50">
-                    <option value="flat">Flat ₹</option>
-                    <option value="percent">Percent %</option>
-                  </Select>
-                  <Input type="number" value={discountValue} onChange={e=>setDiscountValue(e.target.value)} placeholder="Discount" className="!py-1 !text-xs text-right"/>
-                  <span className="text-sm font-bold text-green-600 min-w-[80px] text-right">-{discountAmount.toLocaleString()}</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <Select value={discountType} onChange={e=>setDiscountType(e.target.value)} className="!py-1 !text-xs w-28 !bg-slate-50">
+                  <option value="flat">Flat ₹</option>
+                  <option value="percent">Percent %</option>
+                </Select>
+                <Input type="number" value={discountValue} onChange={e=>setDiscountValue(e.target.value)} placeholder="Discount" className="!py-1 !text-xs text-right"/>
+                <span className="text-sm font-bold text-green-600 min-w-[80px] text-right">-{discountAmount.toLocaleString()}</span>
+              </div>
 
-              {settings?.showTransport === '1' && (
-                <div className="flex justify-between items-center gap-2">
-                  <span className="text-sm text-slate-500 flex-1">Transport Charges</span>
-                  <Input type="number" value={transport} onChange={e=>setTransport(e.target.value)} placeholder="0" className="!py-1 !text-xs w-24 text-right"/>
-                </div>
-              )}
-              {settings?.showLoading === '1' && (
-                <div className="flex justify-between items-center gap-2">
-                  <span className="text-sm text-slate-500 flex-1">Loading Charges</span>
-                  <Input type="number" value={loading} onChange={e=>setLoading(e.target.value)} placeholder="0" className="!py-1 !text-xs w-24 text-right"/>
-                </div>
-              )}
-              {settings?.showUnloading === '1' && (
-                <div className="flex justify-between items-center gap-2">
-                  <span className="text-sm text-slate-500 flex-1">Unloading Charges</span>
-                  <Input type="number" value={unloading} onChange={e=>setUnloading(e.target.value)} placeholder="0" className="!py-1 !text-xs w-24 text-right"/>
-                </div>
-              )}
-              {settings?.showOtherCharges === '1' && (
-                <div className="flex justify-between items-center gap-2">
-                  <span className="text-sm text-slate-500 flex-1">Other Charges</span>
-                  <Input type="number" value={otherCharges} onChange={e=>setOtherCharges(e.target.value)} placeholder="0" className="!py-1 !text-xs w-24 text-right"/>
-                </div>
-              )}
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-sm text-slate-500 flex-1">Transport Charges</span>
+                <Input type="number" value={transport} onChange={e=>setTransport(e.target.value)} placeholder="0" className="!py-1 !text-xs w-24 text-right"/>
+              </div>
 
-              {settings?.showGST === '1' && (
-                <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-100">
-                  <span className="text-sm text-slate-500">GST %</span>
-                  <Input type="number" value={gstPercent} onChange={e=>setGstPercent(e.target.value)} placeholder="0" className="!py-1 !text-xs w-16 text-center"/>
-                  <span className="text-sm font-bold text-slate-700 min-w-[80px] text-right">+₹{gstAmount.toLocaleString()}</span>
-                </div>
-              )}
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-sm text-slate-500 flex-1">Loading Charges</span>
+                <Input type="number" value={loading} onChange={e=>setLoading(e.target.value)} placeholder="0" className="!py-1 !text-xs w-24 text-right"/>
+              </div>
+
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-sm text-slate-500 flex-1">Unloading Charges</span>
+                <Input type="number" value={unloading} onChange={e=>setUnloading(e.target.value)} placeholder="0" className="!py-1 !text-xs w-24 text-right"/>
+              </div>
+
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-sm text-slate-500 flex-1">Other Charges</span>
+                <Input type="number" value={otherCharges} onChange={e=>setOtherCharges(e.target.value)} placeholder="0" className="!py-1 !text-xs w-24 text-right"/>
+              </div>
+
+              <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-100">
+                <span className="text-sm text-slate-500">GST %</span>
+                <Input type="number" value={gstPercent} onChange={e=>setGstPercent(e.target.value)} placeholder="0" className="!py-1 !text-xs w-16 text-center"/>
+                <span className="text-sm font-bold text-slate-700 min-w-[80px] text-right">+₹{gstAmount.toLocaleString()}</span>
+              </div>
 
             </div>
             

@@ -162,13 +162,13 @@ export default function App() {
       case 'settings':
         return <SettingsScreen onBack={() => setSubScreen(null)} onNavigate={setSubScreen} />;
       case 'master-settings':
-        return <MasterSettingsScreen onBack={() => setSubScreen('settings')} />;
+        return <MasterSettingsScreen onBack={() => setSubScreen(null)} />;
       case 'recipe-settings':
-        return <RecipeSettingsScreen onBack={() => setSubScreen('settings')} />;
+        return <RecipeSettingsScreen onBack={() => setSubScreen(null)} />;
       case 'data-migration':
         return <DataMigrationScreen onBack={() => setSubScreen('settings')} />;
       case 'invoice-settings':
-        return <InvoiceSettingsScreen onBack={() => setSubScreen('settings')} />;
+        return <InvoiceSettingsScreen onBack={() => setSubScreen(null)} />;
       case 'invoice-builder':
         return <InvoiceBuilderScreen onBack={() => setSubScreen(null)} />;
       default:
