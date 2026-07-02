@@ -65,7 +65,7 @@ export default function SupplierLedgerSheet({ open, onClose, supplierId }) {
       const factory = Object.fromEntries(settings.map((s) => [s.key, s.value]));
       const blob = generateStatementPDF({
         party: supplier,
-        transactions: transactions.filter(t => t.type === 'purchase') || [],
+        transactions: transactions,
         factory,
         type: 'supplier',
       });
@@ -124,6 +124,11 @@ export default function SupplierLedgerSheet({ open, onClose, supplierId }) {
               icon={MessageCircle}
               disabled={supplier.outstandingBalance <= 0}
               className="!bg-[#25D366] !from-[#25D366] !to-[#1FAF54] !border-[#25D366]/40 px-0"
+            />
+            <GlassButton
+              onClick={handleExportStatement}
+              icon={FileText}
+              disabled={sending}
             />
           </div>
         </div>

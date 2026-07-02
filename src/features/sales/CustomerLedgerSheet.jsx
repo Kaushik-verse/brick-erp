@@ -64,7 +64,7 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
       const factory = Object.fromEntries(settings.map((s) => [s.key, s.value]));
       const blob = generateStatementPDF({
         party: customer,
-        transactions: transactions.filter(t => t.type === 'sale') || [],
+        transactions: transactions,
         factory,
         type: 'customer',
       });
@@ -72,92 +72,6 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
       pushToast('Statement ready to share', 'success');
     } catch (e) {
       pushToast('Could not generate statement', 'error');
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const handleGenerateInvoice = async () => {
-    setSending(true);
-    try {
-      // Sort chronologically ascending for a ledger-style invoice
-      const chronoSorted = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date) || a.id - b.id);
-      
-      const items = [];
-      let currentSubtotal = 0;
-
-      for (const t of chronoSorted) {
-         const displayDate = t.date ? t.date.substring(0, 10) : '';
-         
-         if (t.type === 'sale') {
-           // Add each brick type purchased that day as a row
-           const itemsList = t.items || [{ description: t.brickSize || 'Fly Ash Brick', quantity: t.quantity || 0, rate: t.rate || 0, amount: t.totalAmount || 0 }];
-           for (const it of itemsList) {
-             const amt = Number(it.amount) || 0;
-             items.push({
-                 id: Math.random().toString(),
-                 description: `${displayDate} : ${it.description || 'Bricks'}`,
-                 quantity: it.quantity,
-                 rate: it.rate,
-                 amount: amt
-             });
-             currentSubtotal += amt;
-           }
-           // If they paid any amount exactly on the sale invoice
-           if (t.amountPaid > 0) {
-             items.push({
-                 id: Math.random().toString(),
-                 description: `${displayDate} : Payment (Inv #${t.invoiceNumber || t.id})`,
-                 quantity: '',
-                 rate: '',
-                 amount: -t.amountPaid
-             });
-             currentSubtotal -= t.amountPaid;
-           }
-         } else if (t.type === 'collection') {
-           // Add collection as a negative row
-           items.push({
-               id: Math.random().toString(),
-               description: `${displayDate} : Payment Received`,
-               quantity: '',
-               rate: '',
-               amount: -t.amount
-           });
-           currentSubtotal -= t.amount;
-         }
-      }
-
-      const balanceDue = Math.max(0, currentSubtotal);
-      
-      const invoiceData = {
-         invoiceNumber: `STMT-${String(customer.id).padStart(4, '0')}`,
-         date: new Date().toISOString(),
-         type: 'STATEMENT'
-      };
-
-      const summaryData = {
-         subtotal: currentSubtotal,
-         grandTotal: currentSubtotal,
-         amountPaid: 0, // already deducted inline
-         balanceDue: balanceDue,
-         paymentStatus: balanceDue > 0 ? 'partial' : 'paid',
-         paymentChannel: 'mixed'
-      };
-
-      setInvoiceBuilderData({
-         invoice: invoiceData,
-         items: items.length ? items : [{ id: '1', description: 'No history', quantity: '', rate: '', amount: 0 }],
-         summary: summaryData,
-         customer,
-      });
-
-      onClose();
-      if (onNavigate) {
-         onNavigate('invoice-builder');
-      }
-
-    } catch (e) {
-      pushToast('Could not open invoice builder', 'error');
     } finally {
       setSending(false);
     }
@@ -214,7 +128,7 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
             <GlassButton
               variant="glass"
               fullWidth
-              onClick={handleGenerateInvoice}
+              onClick={handleExportStatement}
               icon={FileText}
               disabled={sending}
             >

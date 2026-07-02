@@ -494,24 +494,47 @@ export function generateStatementPDF({ party, transactions, factory, type = 'cus
   y += 24;
 
   const safeTransactions = transactions || [];
-  const rows = safeTransactions.map((t) => {
-    const aging = calculateAgingDays(t.date);
-    const desc =
-      type === 'customer' ? `${t.quantity} x ${t.brickSize} bricks` : 'Material purchase';
+  
+  // Sort chronologically
+  const chronoSorted = [...safeTransactions].sort((a, b) => new Date(a.date) - new Date(b.date) || a.id - b.id);
+  
+  let runningBalance = 0;
+
+  const rows = chronoSorted.map((t) => {
+    let product = '-';
+    let qty = '-';
+    let rate = '-';
+    let total = '-';
+    let paid = '-';
+    
+    if (t.type === 'sale' || t.type === 'purchase' || t.brickSize || t.materialId) {
+      product = t.brickSize || t.materialName || 'Material';
+      qty = t.quantity ? t.quantity.toLocaleString() : '-';
+      rate = t.rate ? pdfCurrency(t.rate) : '-';
+      total = t.totalAmount ? pdfCurrency(t.totalAmount) : '-';
+      paid = t.amountPaid ? pdfCurrency(t.amountPaid) : '-';
+      runningBalance += (t.totalAmount || 0) - (t.amountPaid || 0);
+    } else {
+      product = type === 'customer' ? 'Payment Received' : 'Payment Sent';
+      paid = t.amount ? pdfCurrency(t.amount) : '-';
+      runningBalance -= (t.amount || 0);
+    }
+
     return [
       formatDateDisplay(t.date),
-      desc,
-      pdfCurrency(t.totalAmount),
-      pdfCurrency(t.amountPaid),
-      pdfCurrency(t.balanceDue),
-      `${aging}d`,
+      product,
+      qty,
+      rate,
+      total,
+      paid,
+      pdfCurrency(runningBalance),
     ];
   });
 
   doc.autoTable({
     startY: y,
-    head: [['Date', 'Description', 'Total', 'Paid', 'Balance', 'Aging']],
-    body: rows.length ? rows : [['-', 'No transactions yet', '-', '-', '-', '-']],
+    head: [['Date', 'Product / Details', 'Qty', 'Rate', 'Total', 'Paid', 'Balance']],
+    body: rows.length ? rows : [['-', 'No transactions yet', '-', '-', '-', '-', '-']],
     theme: 'striped',
     styles: { font: 'helvetica', fontSize: 8.5, textColor: INK, cellPadding: 2.5 },
     headStyles: { fillColor: ACCENT, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
@@ -521,6 +544,7 @@ export function generateStatementPDF({ party, transactions, factory, type = 'cus
       3: { halign: 'right' },
       4: { halign: 'right' },
       5: { halign: 'right' },
+      6: { halign: 'right', fontStyle: 'bold' },
     },
     tableLineColor: RULE,
     tableLineWidth: 0.15,
