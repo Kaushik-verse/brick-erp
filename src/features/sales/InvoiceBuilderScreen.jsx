@@ -263,7 +263,7 @@ Regards,
                   <th className="p-3 w-24">Qty</th>
                   <th className="p-3 w-28">Rate (₹)</th>
                   <th className="p-3 w-32 text-right">Amount</th>
-                  {invoiceData?.type === 'STATEMENT' && (
+                  {isStatement && (
                     <>
                       <th className="p-3 w-32 text-right text-emerald-600">Paid</th>
                       <th className="p-3 w-32 text-right text-[#C65D2E]">Balance</th>
@@ -297,7 +297,7 @@ Regards,
                     <td className="p-3 text-right text-sm font-bold text-slate-700">
                       ₹{item.amount?.toLocaleString()}
                     </td>
-                    {invoiceData?.type === 'STATEMENT' && (
+                    {isStatement && (
                       <>
                         <td className="p-3 text-right text-sm font-bold text-emerald-600">
                           {item.paid ? `₹${item.paid.toLocaleString()}` : '-'}
