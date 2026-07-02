@@ -108,7 +108,7 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
                  rate: it.rate,
                  amount: amt,
                  paid: paid,
-                 balance: runningBalance
+                 balance: amt - paid // Balance just for this day/transaction
              });
              currentSubtotal += amt;
            }
@@ -123,7 +123,7 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
                rate: '',
                amount: 0,
                paid: t.amount,
-               balance: runningBalance
+               balance: undefined // No balance to show for a pure payment row
            });
          }
       }
