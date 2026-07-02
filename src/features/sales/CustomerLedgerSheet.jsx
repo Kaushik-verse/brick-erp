@@ -85,6 +85,7 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
       const items = [];
       let currentSubtotal = 0;
       let runningBalance = 0;
+      let totalPaid = 0;
 
       for (const t of chronoSorted) {
          const displayDate = t.date ? t.date.substring(0, 10) : '';
@@ -97,6 +98,7 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
              const isLast = i === itemsList.length - 1;
              const paid = isLast ? (t.amountPaid || 0) : 0;
              runningBalance += amt - paid;
+             totalPaid += paid;
              
              items.push({
                  id: Math.random().toString(),
@@ -112,6 +114,7 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
            }
          } else if (t.type === 'collection') {
            runningBalance -= t.amount;
+           totalPaid += t.amount;
            items.push({
                id: Math.random().toString(),
                date: displayDate,
@@ -134,7 +137,7 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
       const summaryData = {
          subtotal: currentSubtotal,
          grandTotal: currentSubtotal,
-         amountPaid: 0,
+         amountPaid: totalPaid,
          balanceDue: runningBalance,
          paymentStatus: runningBalance > 0 ? 'partial' : 'paid',
          paymentChannel: 'mixed'

@@ -59,7 +59,12 @@ export default function InvoiceBuilderScreen({ onBack }) {
   const [saving, setSaving] = useState(false);
 
   // ----- CALCULATIONS -----
-  const subtotal = items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
+  const isStatement = invoiceBuilderData?.invoice?.type === 'STATEMENT';
+
+  const subtotal = isStatement && invoiceBuilderData.summary 
+      ? invoiceBuilderData.summary.subtotal 
+      : items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
+      
   const transportCharges = Number(transport) || 0;
   const loadingCharges = Number(loading) || 0;
   const unloadingCharges = Number(unloading) || 0;
@@ -67,8 +72,14 @@ export default function InvoiceBuilderScreen({ onBack }) {
   
   const taxableAmount = subtotal + transportCharges + loadingCharges + unloadingCharges + otherChargesVal;
   const grandTotal = taxableAmount;
-  const paid = Number(amountPaid) || 0;
-  const balanceDue = grandTotal - paid;
+  
+  const paid = isStatement && invoiceBuilderData.summary
+      ? invoiceBuilderData.summary.amountPaid
+      : Number(amountPaid) || 0;
+      
+  const balanceDue = isStatement && invoiceBuilderData.summary
+      ? invoiceBuilderData.summary.balanceDue
+      : grandTotal - paid;
   
   let paymentStatus = 'pending';
   if (paid > 0 && paid < grandTotal) paymentStatus = 'partial';
