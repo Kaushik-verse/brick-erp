@@ -22,8 +22,10 @@ function blobToBase64(blob) {
  * `mimeType` (optional) re-wraps the blob with an explicit content type —
  * some Android share targets route incorrectly without one.
  */
+import { Capacitor } from '@capacitor/core';
+
 export async function saveAndShareBlob(blob, filename, mimeType, text = '') {
-  const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform?.());
+  const isNative = Capacitor.isNativePlatform();
   const typedBlob = mimeType && blob.type !== mimeType ? new Blob([blob], { type: mimeType }) : blob;
 
   if (!isNative) {

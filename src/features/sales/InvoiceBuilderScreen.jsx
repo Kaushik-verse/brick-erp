@@ -164,20 +164,12 @@ Regards,
 *JAYA VASAVI INDUSTRIES*
 📍 Chinamamidipalli, Narsapur, West Godavari
 📞 9848174346 | 9502266200`;
-          if (Capacitor.isNativePlatform()) {
-            await saveAndShareBlob(pdfBlob, `${invNum}.pdf`, 'application/pdf', text);
-          } else {
+          if (!Capacitor.isNativePlatform()) {
             await openWhatsAppLink(`https://wa.me/?text=${encodeURIComponent(text)}`);
-            const url = URL.createObjectURL(pdfBlob);
-            window.open(url);
           }
+          await saveAndShareBlob(pdfBlob, `${invNum}.pdf`, 'application/pdf', text);
         } else {
-          if (Capacitor.isNativePlatform()) {
-            await saveAndShareBlob(pdfBlob, `${invNum}.pdf`, 'application/pdf');
-          } else {
-            const url = URL.createObjectURL(pdfBlob);
-            window.open(url);
-          }
+          await saveAndShareBlob(pdfBlob, `${invNum}.pdf`, 'application/pdf');
         }
       }
 
