@@ -80,56 +80,64 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
   const handleGenerateInvoice = async () => {
     setSending(true);
     try {
-      const factory = Object.fromEntries(settings.map((s) => [s.key, s.value]));
-      const sales = transactions.filter(t => t.type === 'sale');
+      // Sort chronologically ascending for a ledger-style invoice
+      const chronoSorted = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date) || a.id - b.id);
       
-      if (sales.length === 0) {
-        pushToast('No sales found to generate invoice', 'error');
-        setSending(false);
-        return;
-      }
+      const items = [];
+      let currentSubtotal = 0;
 
-      // Group sales by brick size/description
-      const grouped = {};
-      let subtotal = 0;
-      let amountPaid = 0;
-      
-      for (const s of sales) {
-         const itemsList = s.items || [{ description: s.brickSize, quantity: s.quantity, rate: s.rate, amount: s.totalAmount }];
-         for (const it of itemsList) {
-           const desc = it.description || 'Unknown Item';
-           if (!grouped[desc]) {
-               grouped[desc] = { quantity: 0, amount: 0, rate: it.rate };
+      for (const t of chronoSorted) {
+         const displayDate = t.date ? t.date.substring(0, 10) : '';
+         
+         if (t.type === 'sale') {
+           // Add each brick type purchased that day as a row
+           for (const it of (t.items || [])) {
+             const amt = Number(it.amount) || 0;
+             items.push({
+                 id: Math.random().toString(),
+                 description: `${displayDate} : ${it.description || 'Bricks'}`,
+                 quantity: it.quantity,
+                 rate: it.rate,
+                 amount: amt
+             });
+             currentSubtotal += amt;
            }
-           grouped[desc].quantity += (it.quantity || 0);
-           grouped[desc].amount += (it.amount || 0);
+           // If they paid any amount exactly on the sale invoice
+           if (t.amountPaid > 0) {
+             items.push({
+                 id: Math.random().toString(),
+                 description: `${displayDate} : Payment (Inv #${t.invoiceNumber || t.id})`,
+                 quantity: '',
+                 rate: '',
+                 amount: -t.amountPaid
+             });
+             currentSubtotal -= t.amountPaid;
+           }
+         } else if (t.type === 'collection') {
+           // Add collection as a negative row
+           items.push({
+               id: Math.random().toString(),
+               description: `${displayDate} : Payment Received`,
+               quantity: '',
+               rate: '',
+               amount: -t.amount
+           });
+           currentSubtotal -= t.amount;
          }
-         subtotal += (s.totalAmount || 0);
-         amountPaid += (s.amountPaid || 0);
       }
 
-      const items = Object.entries(grouped).map(([brickSize, data]) => ({
-         description: `Fly Ash Brick - ${brickSize}`,
-         quantity: data.quantity,
-         rate: data.amount / data.quantity, // average rate
-         amount: data.amount
-      }));
-
-      // Calculate total payments from collections as well
-      const collections = transactions.filter(t => t.type === 'collection');
-      const totalCollected = collections.reduce((acc, c) => acc + c.amount, 0) + amountPaid;
-      const balanceDue = Math.max(0, subtotal - totalCollected);
+      const balanceDue = Math.max(0, currentSubtotal);
       
       const invoiceData = {
-         invoiceNumber: `CON-${String(customer.id).padStart(4, '0')}`,
+         invoiceNumber: `STMT-${String(customer.id).padStart(4, '0')}`,
          date: new Date().toISOString(),
-         type: balanceDue > 0 ? 'CREDIT BILL' : 'CASH BILL'
+         type: 'STATEMENT'
       };
 
       const summaryData = {
-         subtotal,
-         grandTotal: subtotal,
-         amountPaid: totalCollected,
+         subtotal: currentSubtotal,
+         grandTotal: currentSubtotal,
+         amountPaid: 0, // already deducted inline
          balanceDue: balanceDue,
          paymentStatus: balanceDue > 0 ? 'partial' : 'paid',
          paymentChannel: 'mixed'
@@ -137,7 +145,7 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
 
       setInvoiceBuilderData({
          invoice: invoiceData,
-         items,
+         items: items.length ? items : [{ id: '1', description: 'No history', quantity: '', rate: '', amount: 0 }],
          summary: summaryData,
          customer,
       });
