@@ -91,7 +91,8 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
          
          if (t.type === 'sale') {
            // Add each brick type purchased that day as a row
-           for (const it of (t.items || [])) {
+           const itemsList = t.items || [{ description: t.brickSize || 'Fly Ash Brick', quantity: t.quantity || 0, rate: t.rate || 0, amount: t.totalAmount || 0 }];
+           for (const it of itemsList) {
              const amt = Number(it.amount) || 0;
              items.push({
                  id: Math.random().toString(),
