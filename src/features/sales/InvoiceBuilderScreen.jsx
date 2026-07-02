@@ -42,7 +42,16 @@ export default function InvoiceBuilderScreen({ onBack }) {
   // Products
   const [items, setItems] = useState(
     invoiceBuilderData?.items?.length 
-      ? invoiceBuilderData.items.map(it => ({ id: Math.random().toString(), description: it.description, quantity: it.quantity, rate: it.rate, amount: it.amount }))
+      ? invoiceBuilderData.items.map(it => ({ 
+          id: Math.random().toString(), 
+          date: it.date || '',
+          description: it.description, 
+          quantity: it.quantity, 
+          rate: it.rate, 
+          amount: it.amount,
+          paid: it.paid !== undefined ? it.paid : 0,
+          balance: it.balance !== undefined ? it.balance : 0
+        }))
       : [{ id: '1', description: '', quantity: '', rate: '', amount: 0 }]
   );
 
