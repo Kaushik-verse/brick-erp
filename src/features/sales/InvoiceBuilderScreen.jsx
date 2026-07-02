@@ -104,7 +104,15 @@ export default function InvoiceBuilderScreen({ onBack }) {
         }
       }
 
-      const cleanItems = items.map(i => ({ description: i.description, quantity: Number(i.quantity), rate: Number(i.rate), amount: Number(i.amount) }));
+      const cleanItems = items.map(i => ({ 
+        date: i.date,
+        description: i.description, 
+        quantity: Number(i.quantity), 
+        rate: Number(i.rate), 
+        amount: Number(i.amount),
+        paid: i.paid !== undefined ? Number(i.paid) : undefined,
+        balance: i.balance !== undefined ? Number(i.balance) : undefined
+      }));
       const cust = await db.customers.get(Number(newCustId));
       
       if (!isExisting) {
@@ -125,7 +133,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
       s.forEach(x => factorySettings[x.key] = x.value);
       
       const invoiceData = {
-        invoice: { invoiceNumber: invNum, date },
+        invoice: { invoiceNumber: invNum, date, type: invoiceBuilderData?.invoice?.type },
         items: cleanItems,
         summary: { subtotal, transportCharges, loadingCharges, unloadingCharges, otherCharges: otherChargesVal, grandTotal, amountPaid: paid, balanceDue, paymentStatus },
         customer: cust || { name: newCustomerName },
@@ -244,6 +252,12 @@ Regards,
                   <th className="p-3 w-24">Qty</th>
                   <th className="p-3 w-28">Rate (₹)</th>
                   <th className="p-3 w-32 text-right">Amount</th>
+                  {invoiceData?.type === 'STATEMENT' && (
+                    <>
+                      <th className="p-3 w-32 text-right text-emerald-600">Paid</th>
+                      <th className="p-3 w-32 text-right text-[#C65D2E]">Balance</th>
+                    </>
+                  )}
                   <th className="p-3 w-12 text-center"></th>
                 </tr>
               </thead>
@@ -270,8 +284,18 @@ Regards,
                       <Input type="number" value={item.rate} onChange={e => updateItem(item.id, 'rate', e.target.value)} className="bg-transparent border-transparent hover:border-slate-200 text-right focus:bg-white" placeholder="0.0" />
                     </td>
                     <td className="p-3 text-right text-sm font-bold text-slate-700">
-                      ₹{item.amount.toLocaleString()}
+                      ₹{item.amount?.toLocaleString()}
                     </td>
+                    {invoiceData?.type === 'STATEMENT' && (
+                      <>
+                        <td className="p-3 text-right text-sm font-bold text-emerald-600">
+                          {item.paid ? `₹${item.paid.toLocaleString()}` : '-'}
+                        </td>
+                        <td className="p-3 text-right text-sm font-bold text-[#C65D2E]">
+                          {item.balance !== undefined ? `₹${item.balance.toLocaleString()}` : '-'}
+                        </td>
+                      </>
+                    )}
                     <td className="p-3 text-center">
                       <button onClick={() => handleRemoveItem(item.id)} className="text-slate-300 hover:text-red-500 opacity-50 group-hover:opacity-100 transition-opacity">
                         <Trash2 size={16}/>

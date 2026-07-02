@@ -77,6 +77,88 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
     }
   };
 
+  const handleGenerateInvoice = async () => {
+    setSending(true);
+    try {
+      const chronoSorted = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date) || a.id - b.id);
+      
+      const items = [];
+      let currentSubtotal = 0;
+      let runningBalance = 0;
+
+      for (const t of chronoSorted) {
+         const displayDate = t.date ? t.date.substring(0, 10) : '';
+         
+         if (t.type === 'sale') {
+           const itemsList = t.items || [{ description: t.brickSize || 'Fly Ash Brick', quantity: t.quantity || 0, rate: t.rate || 0, amount: t.totalAmount || 0 }];
+           for (let i = 0; i < itemsList.length; i++) {
+             const it = itemsList[i];
+             const amt = Number(it.amount) || 0;
+             const isLast = i === itemsList.length - 1;
+             const paid = isLast ? (t.amountPaid || 0) : 0;
+             runningBalance += amt - paid;
+             
+             items.push({
+                 id: Math.random().toString(),
+                 date: displayDate,
+                 description: `${it.description || 'Bricks'}`,
+                 quantity: it.quantity,
+                 rate: it.rate,
+                 amount: amt,
+                 paid: paid,
+                 balance: runningBalance
+             });
+             currentSubtotal += amt;
+           }
+         } else if (t.type === 'collection') {
+           runningBalance -= t.amount;
+           items.push({
+               id: Math.random().toString(),
+               date: displayDate,
+               description: `Payment Received`,
+               quantity: '',
+               rate: '',
+               amount: 0,
+               paid: t.amount,
+               balance: runningBalance
+           });
+         }
+      }
+
+      const invoiceData = {
+         invoiceNumber: `STMT-${String(customer.id).padStart(4, '0')}`,
+         date: new Date().toISOString(),
+         type: 'STATEMENT'
+      };
+
+      const summaryData = {
+         subtotal: currentSubtotal,
+         grandTotal: currentSubtotal,
+         amountPaid: 0,
+         balanceDue: runningBalance,
+         paymentStatus: runningBalance > 0 ? 'partial' : 'paid',
+         paymentChannel: 'mixed'
+      };
+
+      setInvoiceBuilderData({
+         invoice: invoiceData,
+         items: items.length ? items : [{ id: '1', date: '', description: 'No history', quantity: '', rate: '', amount: 0, paid: 0, balance: 0 }],
+         summary: summaryData,
+         customer,
+      });
+
+      onClose();
+      if (onNavigate) {
+         onNavigate('invoice-builder');
+      }
+    } catch (e) {
+      console.error(e);
+      pushToast('Error building consolidated invoice', 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleDelete = async (t) => {
     if (!window.confirm(`Are you sure you want to delete this ${t.type}? This will adjust balances.`)) return;
     try {
@@ -87,20 +169,18 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
       }
       pushToast(`${t.type} deleted successfully`, 'success');
     } catch (e) {
-      pushToast(e.message || 'Could not delete transaction', 'error');
+      pushToast(`Could not delete ${t.type}`, 'error');
     }
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title={customer.name}>
-      <div className="space-y-4">
-        <div className="glass-surface-light rounded-2xl p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-clay-400">Outstanding Balance</p>
-            <p className="figure text-2xl font-bold text-ledger-overdue">
-              {formatINR(customer.outstandingBalance)}
-            </p>
-          </div>
+    <BottomSheet open={open} onClose={onClose} title={customer.name} snapPoints={['90vh']}>
+      <div className="p-4 space-y-5 pb-10 max-h-[85vh] overflow-y-auto no-scrollbar">
+        <div className="bg-clay-800 rounded-2xl p-4 shadow-sm border border-clay-700">
+          <p className="text-clay-400 text-xs font-semibold mb-1 uppercase tracking-wider">Outstanding Balance</p>
+          <p className="text-2xl font-bold text-ledger-overdue mb-3">
+            {formatINR(customer.outstandingBalance)}
+          </p>
           {customer.phone && (
             <div className="flex items-center gap-1 text-clay-400 text-xs">
               <Phone size={12} /> {customer.phone}
@@ -122,13 +202,12 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
               onClick={handleWhatsAppReminder}
               icon={MessageCircle}
               disabled={customer.outstandingBalance <= 0}
-              className="!bg-[#25D366] !from-[#25D366] !to-[#1FAF54] !border-[#25D366]/40"
-              style={{ paddingLeft: 0, paddingRight: 0 }}
+              className="!bg-[#25D366] !from-[#25D366] !to-[#1FAF54] !border-[#25D366]/40 px-0"
             />
             <GlassButton
               variant="glass"
               fullWidth
-              onClick={handleExportStatement}
+              onClick={handleGenerateInvoice}
               icon={FileText}
               disabled={sending}
             >

@@ -244,6 +244,8 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
     ? passedItems 
     : [{ description: invoice.brickSize, quantity: invoice.quantity, rate: invoice.rate, amount: invoice.totalAmount, unit: 'Nos' }];
 
+  const isStatement = invoice.type === 'STATEMENT';
+
   const tableData = itemsArray.map((item, index) => {
     let product = item.description || '-';
     let size = '-';
@@ -252,6 +254,19 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
       product = parts[0];
       size = parts.slice(1).join(' - ');
     }
+    
+    if (isStatement) {
+       return [
+         item.date || '-',
+         product,
+         item.quantity?.toLocaleString() || '-',
+         item.rate ? pdfCurrency(item.rate) : '-',
+         pdfCurrency(item.amount || 0),
+         item.paid ? pdfCurrency(item.paid) : '-',
+         item.balance !== undefined ? pdfCurrency(item.balance) : '-'
+       ];
+    }
+
     return [
       product,
       size,
@@ -262,22 +277,38 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
     ];
   });
 
+  const head = isStatement 
+     ? [['Date', 'Description', 'Qty', 'Rate', 'Amount', 'Paid', 'Balance']]
+     : [['Product', 'Size', 'Qty', 'Unit', 'Rate', 'Amount']];
+
+  const colStyles = isStatement
+     ? {
+         0: { cellWidth: 25, textColor: GRAY },
+         1: { cellWidth: 50, textColor: DARK, fontStyle: 'bold' },
+         2: { halign: 'right', textColor: DARK },
+         3: { halign: 'right', textColor: GRAY },
+         4: { halign: 'right', textColor: DARK, fontStyle: 'bold' },
+         5: { halign: 'right', textColor: [22, 163, 74], fontStyle: 'bold' },
+         6: { halign: 'right', textColor: PRIMARY, fontStyle: 'bold' },
+       }
+     : {
+         0: { cellWidth: 50, textColor: DARK, fontStyle: 'bold' },
+         1: { cellWidth: 40, textColor: GRAY },
+         2: { halign: 'right', textColor: DARK },
+         3: { halign: 'center', textColor: GRAY },
+         4: { halign: 'right', textColor: GRAY },
+         5: { halign: 'right', textColor: DARK, fontStyle: 'bold' },
+       };
+
   doc.autoTable({
     startY: y,
-    head: [['Product', 'Size', 'Qty', 'Unit', 'Rate', 'Amount']],
+    head: head,
     body: tableData,
     theme: 'plain',
     styles: { font: 'helvetica', fontSize: 9, cellPadding: 3 },
     headStyles: { fillColor: DARK, textColor: [255, 255, 255], fontStyle: 'bold' },
     alternateRowStyles: { fillColor: LIGHT_GRAY },
-    columnStyles: {
-      0: { cellWidth: 50, textColor: DARK, fontStyle: 'bold' },
-      1: { cellWidth: 40, textColor: GRAY },
-      2: { halign: 'right', textColor: DARK },
-      3: { halign: 'center', textColor: GRAY },
-      4: { halign: 'right', textColor: GRAY },
-      5: { halign: 'right', textColor: DARK, fontStyle: 'bold' },
-    },
+    columnStyles: colStyles,
     margin: { left: marginLeft, right: 210 - marginRight }
   });
 
