@@ -35,7 +35,8 @@ export default function InvoiceBuilderScreen({ onBack }) {
   const [showNewCustomer, setShowNewCustomer] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState(invoiceBuilderData?.customer?.name || '');
   const [newCustomerPhone, setNewCustomerPhone] = useState(invoiceBuilderData?.customer?.phone || '');
-
+  // Vehicle Details
+  const [vehicleNumber, setVehicleNumber] = useState(invoiceBuilderData?.vehicle?.vehicleNumber || '');
   const [remarks, setRemarks] = useState('');
 
   // Products
