@@ -90,7 +90,7 @@ export default function ExpensesScreen() {
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-clay-100 truncate">{e.category}</p>
                       <p className="text-xs text-clay-500">
-                        {formatDateDisplay(e.date)} · {e.paymentChannel === 'cash' ? 'Cash' : 'Bank/UPI'}
+                        {formatDateDisplay(e.date)} · {e.paymentChannel === 'cash' ? 'Cash' : 'Bank'}
                       </p>
                     </div>
                   </div>
@@ -236,7 +236,7 @@ function AddExpenseSheet({ open, onClose }) {
           onChange={setPaymentChannel}
           options={[
             { value: 'cash', label: 'Cash-in-Hand', icon: Banknote },
-            { value: 'bank', label: 'Bank/UPI', icon: Landmark },
+            { value: 'bank', label: 'Bank', icon: Landmark },
           ]}
         />
 

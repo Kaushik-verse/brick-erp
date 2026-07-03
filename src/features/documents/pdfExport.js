@@ -190,13 +190,13 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...GRAY);
   
-  const paymentMode = invoice.paymentChannel ? invoice.paymentChannel.toUpperCase() : 'CASH';
+  const paymentMode = invoice.paymentChannel === 'cash' ? 'Cash' : 'Bank';
   const bal = summary.balanceDue !== undefined ? summary.balanceDue : ((summary.grandTotal || summary.totalAmount) - summary.amountPaid);
   const pStatus = summary.paymentStatus || (bal <= 0 ? 'PAID' : (summary.amountPaid > 0 ? 'PARTIAL' : 'UNPAID'));
   
   doc.text(`Invoice No: ${invoice.invoiceNumber || 'INV-0001'}`, marginRight - 5, y + 21, { align: 'right' });
   doc.text(`Date: ${formatDateDisplay(invoice.date)}`, marginRight - 5, y + 25.5, { align: 'right' });
-  doc.text(`Pay Mode: ${paymentMode} | Status: ${pStatus}`, marginRight - 5, y + 30, { align: 'right' });
+  doc.text(`Through: ${paymentMode} | Status: ${pStatus}`, marginRight - 5, y + 30, { align: 'right' });
 
   y += 50;
 

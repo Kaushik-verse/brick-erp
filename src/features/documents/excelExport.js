@@ -102,7 +102,7 @@ export async function exportSalesLedgerExcel(sales, customersById) {
       balanceDue: s.balanceDue,
       status: s.paymentStatus.toUpperCase(),
       aging,
-      channel: s.paymentChannel === 'cash' ? 'Cash' : 'Bank/UPI',
+      channel: s.paymentChannel === 'cash' ? 'Cash' : 'Bank',
     });
 
     ['rate', 'totalAmount', 'amountPaid', 'balanceDue'].forEach((key) => {

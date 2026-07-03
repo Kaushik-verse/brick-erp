@@ -78,7 +78,7 @@ export default function AddCollectionSheet({ open, onClose, customerId, customer
           onChange={setPaymentChannel}
           options={[
             { value: 'cash', label: 'Cash', icon: Banknote },
-            { value: 'bank', label: 'Bank/UPI', icon: Landmark },
+            { value: 'bank', label: 'Bank', icon: Landmark },
           ]}
         />
 

@@ -147,7 +147,15 @@ export async function recordProduction({
       }
 
       // 2. Total + per-brick cost
-      const totalCost = round2(materialCost);
+      let labourCostPerBrick = 0;
+      if (brickSize === '4-inch' || brickSize === '8-inch') {
+        labourCostPerBrick = 3.50;
+      } else if (brickSize === '9-inch') {
+        labourCostPerBrick = 3.80;
+      }
+      const labourCost = round2(labourCostPerBrick * quantity);
+
+      const totalCost = round2(materialCost + labourCost);
       const costPerBrick = round2(totalCost / quantity);
 
       // 3. Increment finished stock + update rolling cost price (weighted average)
@@ -170,13 +178,14 @@ export async function recordProduction({
         brickSize,
         quantity,
         materialCost: round2(materialCost),
+        labourCost,
         totalCost,
         costPerBrick,
         materialsUsed: req,
         createdAt: new Date().toISOString(),
       });
 
-      return { id, totalCost, costPerBrick, materialCost };
+      return { id, totalCost, costPerBrick, materialCost, labourCost };
     }
   );
 }

@@ -397,7 +397,6 @@ Regards,
               <Label>Payment Mode</Label>
               <Select value={paymentChannel} onChange={e=>setPaymentChannel(e.target.value)} className="!h-10">
                 <option value="cash">Cash</option>
-                <option value="upi">UPI</option>
                 <option value="bank">Bank Transfer</option>
                 <option value="cheque">Cheque</option>
                 <option value="credit">Full Credit (Later)</option>
