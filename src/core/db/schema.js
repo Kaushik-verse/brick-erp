@@ -183,6 +183,34 @@ export class BrickERPDatabase extends Dexie {
       }
     });
 
+    this.version(10).stores({
+      // No schema change
+    }).upgrade(async tx => {
+      // 1. Change Quarry Dust to 'unit' and set avg rate to 2400
+      await tx.table('rawMaterials').where('name').equalsIgnoreCase('Quarry Dust').modify(item => {
+        item.unit = 'unit';
+        if (item.avgRate < 10) item.avgRate = 2400;
+      });
+
+      // 2. Ensure 'Unit' unit is active
+      const units = await tx.table('units').toArray();
+      const unitUnit = units.find(u => u.name.toLowerCase() === 'unit');
+      if (unitUnit) {
+        await tx.table('units').update(unitUnit.id, { isActive: 1 });
+      } else {
+        await tx.table('units').add({ name: 'Unit', symbol: 'unit', baseUnit: 'unit', conversionFactor: 1, isActive: 1 });
+      }
+
+      // 3. Update default legacy recipe values to fractional unit math
+      await tx.table('recipes').toCollection().modify(recipe => {
+        if (recipe.brickSize === '4-inch' || recipe.brickSize === '8-inch') {
+          if (recipe.sandKg > 1) recipe.sandKg = 0.0033333333333333335;
+        } else if (recipe.brickSize === '9-inch') {
+          if (recipe.sandKg > 1) recipe.sandKg = 0.004;
+        }
+      });
+    });
+
     this.customers = this.table('customers');
     this.suppliers = this.table('suppliers');
     this.rawMaterials = this.table('rawMaterials');
@@ -226,7 +254,7 @@ async function doSeedDatabaseIfEmpty() {
       { name: 'Fly Ash', unit: 'kg', currentStock: 0, reorderLevel: 5000, avgRate: 0.5, isActive: 1 },
       { name: 'Lime', unit: 'kg', currentStock: 0, reorderLevel: 1000, avgRate: 8, isActive: 1 },
       { name: 'Gypsum', unit: 'kg', currentStock: 0, reorderLevel: 500, avgRate: 6, isActive: 1 },
-      { name: 'Quarry Dust', unit: 'kg', currentStock: 0, reorderLevel: 3000, avgRate: 1.2, isActive: 1 },
+      { name: 'Quarry Dust', unit: 'unit', currentStock: 0, reorderLevel: 3000, avgRate: 2400, isActive: 1 },
     ]);
   }
 
@@ -245,15 +273,15 @@ async function doSeedDatabaseIfEmpty() {
     await db.recipes.bulkAdd([
       {
         brickSize: '4-inch',
-        flyAshKg: 3, limeKg: 1, gypsumKg: 0.1, sandKg: 10.9, cementKg: 0,
+        flyAshKg: 3, limeKg: 1, gypsumKg: 0.1, sandKg: 0.0033333333333333335, cementKg: 0,
       },
       {
         brickSize: '8-inch',
-        flyAshKg: 3, limeKg: 1, gypsumKg: 0.1, sandKg: 10.9, cementKg: 0,
+        flyAshKg: 3, limeKg: 1, gypsumKg: 0.1, sandKg: 0.0033333333333333335, cementKg: 0,
       },
       {
         brickSize: '9-inch',
-        flyAshKg: 3, limeKg: 1.12, gypsumKg: 0.1, sandKg: 12, cementKg: 0,
+        flyAshKg: 3, limeKg: 1.12, gypsumKg: 0.1, sandKg: 0.004, cementKg: 0,
       },
     ]);
   }
@@ -304,6 +332,7 @@ async function doSeedDatabaseIfEmpty() {
       { name: 'Cubic Feet', symbol: 'cft', baseUnit: 'cft', conversionFactor: 1, isActive: 1 },
       { name: 'Cubic Meter', symbol: 'cum', baseUnit: 'cum', conversionFactor: 1, isActive: 1 },
       { name: 'Liter', symbol: 'L', baseUnit: 'L', conversionFactor: 1, isActive: 1 },
+      { name: 'Unit', symbol: 'unit', baseUnit: 'unit', conversionFactor: 1, isActive: 1 },
     ]);
   }
 }

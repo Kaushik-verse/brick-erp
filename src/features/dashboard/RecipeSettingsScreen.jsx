@@ -115,6 +115,7 @@ export default function RecipeSettingsScreen({ onBack }) {
                   label={`${m.name} (${m.unit})`}
                   type="number"
                   inputMode="decimal"
+                  step="any"
                   value={(formData[p.brickSize] && formData[p.brickSize][m.id]) || ''}
                   onChange={(e) => handleUpdate(p.brickSize, m.id, e.target.value)}
                 />
