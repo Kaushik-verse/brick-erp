@@ -211,6 +211,32 @@ export class BrickERPDatabase extends Dexie {
       });
     });
 
+    this.version(11).stores({
+      // No schema change
+    }).upgrade(async tx => {
+      // Find the material ID for Quarry Dust
+      const rawMats = await tx.table('rawMaterials').toArray();
+      const qd = rawMats.find(m => m.name.toLowerCase() === 'quarry dust' || m.name.toLowerCase() === 'sand');
+      
+      if (qd) {
+        await tx.table('recipes').toCollection().modify(recipe => {
+          if (recipe.materials && recipe.materials[qd.id] !== undefined) {
+            if (recipe.brickSize === '4-inch' || recipe.brickSize === '8-inch') {
+              recipe.materials[qd.id] = 1 / 300; // 0.0033333333333333335
+            } else if (recipe.brickSize === '9-inch') {
+              recipe.materials[qd.id] = 1 / 250; // 0.004
+            }
+          }
+          // Also forcibly update the legacy field just in case
+          if (recipe.brickSize === '4-inch' || recipe.brickSize === '8-inch') {
+             recipe.sandKg = 1 / 300;
+          } else if (recipe.brickSize === '9-inch') {
+             recipe.sandKg = 1 / 250;
+          }
+        });
+      }
+    });
+
     this.customers = this.table('customers');
     this.suppliers = this.table('suppliers');
     this.rawMaterials = this.table('rawMaterials');
