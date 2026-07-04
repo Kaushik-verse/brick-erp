@@ -2,12 +2,13 @@ import { useState, useMemo } from 'react';
 import {
   Fuel,
   Wrench,
-  Coffee,
-  HandCoins,
   MoreHorizontal,
   Plus,
   Banknote,
   Landmark,
+  Settings,
+  Tags,
+  MapPin,
 } from 'lucide-react';
 import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
@@ -23,8 +24,9 @@ import { hapticTap } from '../../core/utils/nativeFileBridge';
 export const EXPENSE_CATEGORIES = [
   { key: 'Diesel/Fuel', icon: Fuel },
   { key: 'Vehicle Maintenance', icon: Wrench },
-  { key: 'Labour Food & Tea', icon: Coffee },
-  { key: 'Labour Cash Advance', icon: HandCoins },
+  { key: 'Machinery Repair Charges', icon: Settings },
+  { key: 'General Charges', icon: Tags },
+  { key: 'Travelling Charges', icon: MapPin },
   { key: 'Miscellaneous', icon: MoreHorizontal },
 ];
 
