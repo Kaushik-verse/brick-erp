@@ -51,9 +51,9 @@ export default function InvoiceBuilderScreen({ onBack }) {
           amount: it.amount,
           paid: it.paid !== undefined ? it.paid : 0,
           balance: it.balance !== undefined ? it.balance : 0,
-          paymentMode: it.paymentMode || 'cash'
+          paymentMode: it.paymentMode || ''
         }))
-      : [{ id: '1', date: todayISO(), description: '', quantity: '', rate: '', amount: 0, paymentMode: 'cash' }]
+      : [{ id: '1', date: todayISO(), description: '', quantity: '', rate: '', amount: 0, paymentMode: '' }]
   );
 
   // Extras
@@ -96,7 +96,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
   if (paid >= grandTotal && grandTotal > 0) paymentStatus = 'paid';
 
   // ----- HANDLERS -----
-  const handleAddItem = () => setItems([...items, { id: Date.now().toString(), date: date || todayISO(), description: '', quantity: '', rate: '', amount: 0, paymentMode: 'cash' }]);
+  const handleAddItem = () => setItems([...items, { id: Date.now().toString(), date: date || todayISO(), description: '', quantity: '', rate: '', amount: 0, paymentMode: paymentChannel || '' }]);
   const handleRemoveItem = (id) => items.length > 1 && setItems(items.filter(it => it.id !== id));
   const handleCreateCustomer = async () => { if (!newCustomerName) return; const id = await db.customers.add({ name: newCustomerName, phone: newCustomerPhone, outstandingBalance: 0, createdAt: new Date().toISOString() }); setSelectedCustomerId(id); setShowNewCustomer(false); };
 
@@ -324,7 +324,8 @@ Regards,
                       </>
                     )}
                     <td className="p-3 text-center">
-                      <Select value={item.paymentMode || 'cash'} onChange={e => updateItem(item.id, 'paymentMode', e.target.value)} className="bg-transparent border-transparent hover:border-slate-200 focus:bg-white text-xs px-1">
+                      <Select value={item.paymentMode || ''} onChange={e => updateItem(item.id, 'paymentMode', e.target.value)} className="bg-transparent border-transparent hover:border-slate-200 focus:bg-white text-xs px-1">
+                        <option value="">Default</option>
                         <option value="cash">Cash</option>
                         <option value="upi">UPI</option>
                         <option value="bank">Bank</option>
@@ -412,7 +413,9 @@ Regards,
               <Label>Payment Mode</Label>
               <Select value={paymentChannel} onChange={e=>{
                 setPaymentChannel(e.target.value);
-                setItems(prev => prev.map(it => ({ ...it, paymentMode: e.target.value })));
+                if (!isStatement) {
+                  setItems(prev => prev.map(it => ({ ...it, paymentMode: e.target.value })));
+                }
               }} className="!h-10">
                 <option value="cash">Cash</option>
                 <option value="upi">UPI</option>
