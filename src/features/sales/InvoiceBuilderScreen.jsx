@@ -227,7 +227,7 @@ Regards,
         </div>
       </div>
 
-      <div className="p-4 space-y-4 max-w-4xl mx-auto">
+      <div className="p-4 space-y-4 max-w-7xl mx-auto">
         
         <div className="bg-white rounded-2xl p-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-slate-100">
           <div className="flex justify-between items-center mb-3">
