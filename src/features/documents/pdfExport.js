@@ -257,47 +257,53 @@ export function generateInvoicePDF({ invoice, items: passedItems, summary, custo
     
     if (isStatement) {
        return [
-         item.date || '-',
+         item.date ? formatDateDisplay(item.date) : '-',
          product,
          item.quantity?.toLocaleString() || '-',
          item.rate ? pdfCurrency(item.rate) : '-',
          pdfCurrency(item.amount || 0),
          item.paid ? pdfCurrency(item.paid) : '-',
-         item.balance !== undefined ? pdfCurrency(item.balance) : '-'
+         item.balance !== undefined ? pdfCurrency(item.balance) : '-',
+         item.paymentMode ? item.paymentMode.toUpperCase() : '-'
        ];
     }
 
     return [
+      item.date ? formatDateDisplay(item.date) : formatDateDisplay(invoice.date),
       product,
       size,
       item.quantity?.toLocaleString() || '0',
       item.unit || 'Nos',
       pdfCurrency(item.rate),
-      pdfCurrency(item.amount || (item.quantity * item.rate))
+      pdfCurrency(item.amount || (item.quantity * item.rate)),
+      item.paymentMode ? item.paymentMode.toUpperCase() : (invoice.paymentChannel || 'CASH').toUpperCase()
     ];
   });
 
   const head = isStatement 
-     ? [['Date', 'Description', 'Qty', 'Rate', 'Amount', 'Paid', 'Balance']]
-     : [['Product', 'Size', 'Qty', 'Unit', 'Rate', 'Amount']];
+     ? [['Date', 'Description', 'Qty', 'Rate', 'Amount', 'Paid', 'Balance', 'Mode']]
+     : [['Date', 'Product', 'Size', 'Qty', 'Unit', 'Rate', 'Amount', 'Mode']];
 
   const colStyles = isStatement
      ? {
-         0: { cellWidth: 25, textColor: GRAY },
-         1: { cellWidth: 50, textColor: DARK, fontStyle: 'bold' },
+         0: { cellWidth: 20, textColor: GRAY },
+         1: { cellWidth: 40, textColor: DARK, fontStyle: 'bold' },
          2: { halign: 'right', textColor: DARK },
          3: { halign: 'right', textColor: GRAY },
          4: { halign: 'right', textColor: DARK, fontStyle: 'bold' },
          5: { halign: 'right', textColor: [22, 163, 74], fontStyle: 'bold' },
          6: { halign: 'right', textColor: PRIMARY, fontStyle: 'bold' },
+         7: { halign: 'center', textColor: GRAY },
        }
      : {
-         0: { cellWidth: 50, textColor: DARK, fontStyle: 'bold' },
-         1: { cellWidth: 40, textColor: GRAY },
-         2: { halign: 'right', textColor: DARK },
-         3: { halign: 'center', textColor: GRAY },
-         4: { halign: 'right', textColor: GRAY },
-         5: { halign: 'right', textColor: DARK, fontStyle: 'bold' },
+         0: { cellWidth: 22, textColor: GRAY },
+         1: { cellWidth: 35, textColor: DARK, fontStyle: 'bold' },
+         2: { cellWidth: 25, textColor: GRAY },
+         3: { halign: 'right', textColor: DARK },
+         4: { halign: 'center', textColor: GRAY },
+         5: { halign: 'right', textColor: GRAY },
+         6: { halign: 'right', textColor: DARK, fontStyle: 'bold' },
+         7: { halign: 'center', textColor: GRAY },
        };
 
   doc.autoTable({

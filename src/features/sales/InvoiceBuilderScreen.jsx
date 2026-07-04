@@ -44,15 +44,16 @@ export default function InvoiceBuilderScreen({ onBack }) {
     invoiceBuilderData?.items?.length 
       ? invoiceBuilderData.items.map(it => ({ 
           id: Math.random().toString(), 
-          date: it.date || '',
+          date: it.date || todayISO(),
           description: it.description, 
           quantity: it.quantity, 
           rate: it.rate, 
           amount: it.amount,
           paid: it.paid !== undefined ? it.paid : 0,
-          balance: it.balance !== undefined ? it.balance : 0
+          balance: it.balance !== undefined ? it.balance : 0,
+          paymentMode: it.paymentMode || 'cash'
         }))
-      : [{ id: '1', description: '', quantity: '', rate: '', amount: 0 }]
+      : [{ id: '1', date: todayISO(), description: '', quantity: '', rate: '', amount: 0, paymentMode: 'cash' }]
   );
 
   // Extras
@@ -95,7 +96,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
   if (paid >= grandTotal && grandTotal > 0) paymentStatus = 'paid';
 
   // ----- HANDLERS -----
-  const handleAddItem = () => setItems([...items, { id: Date.now().toString(), description: '', quantity: '', rate: '', amount: 0 }]);
+  const handleAddItem = () => setItems([...items, { id: Date.now().toString(), date: date || todayISO(), description: '', quantity: '', rate: '', amount: 0, paymentMode: 'cash' }]);
   const handleRemoveItem = (id) => items.length > 1 && setItems(items.filter(it => it.id !== id));
   const handleCreateCustomer = async () => { if (!newCustomerName) return; const id = await db.customers.add({ name: newCustomerName, phone: newCustomerPhone, outstandingBalance: 0, createdAt: new Date().toISOString() }); setSelectedCustomerId(id); setShowNewCustomer(false); };
 
@@ -131,7 +132,8 @@ export default function InvoiceBuilderScreen({ onBack }) {
         rate: Number(i.rate), 
         amount: Number(i.amount),
         paid: i.paid !== undefined ? Number(i.paid) : undefined,
-        balance: i.balance !== undefined ? Number(i.balance) : undefined
+        balance: i.balance !== undefined ? Number(i.balance) : undefined,
+        paymentMode: i.paymentMode
       }));
       const cust = await db.customers.get(Number(newCustId));
       
@@ -268,6 +270,7 @@ Regards,
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider font-bold text-slate-500">
                   <th className="p-3 w-8">#</th>
+                  <th className="p-3 w-32">Date</th>
                   <th className="p-3 min-w-[200px]">Product / Description</th>
                   <th className="p-3 w-24">Qty</th>
                   <th className="p-3 w-28">Rate (₹)</th>
@@ -278,6 +281,7 @@ Regards,
                       <th className="p-3 w-32 text-right text-[#C65D2E]">Balance</th>
                     </>
                   )}
+                  <th className="p-3 w-28 text-center">Pay Mode</th>
                   <th className="p-3 w-12 text-center"></th>
                 </tr>
               </thead>
@@ -285,6 +289,9 @@ Regards,
                 {items.map((item, idx) => (
                   <tr key={item.id} className="border-b border-slate-100 last:border-0 group">
                     <td className="p-3 text-xs text-slate-400 font-medium">{idx + 1}</td>
+                    <td className="p-3">
+                      <Input type="date" value={item.date || ''} onChange={e => updateItem(item.id, 'date', e.target.value)} className="bg-transparent border-transparent hover:border-slate-200 focus:bg-white text-xs px-1" />
+                    </td>
                     <td className="p-3">
                       <Input 
                         list="products"
@@ -316,6 +323,14 @@ Regards,
                         </td>
                       </>
                     )}
+                    <td className="p-3 text-center">
+                      <Select value={item.paymentMode || 'cash'} onChange={e => updateItem(item.id, 'paymentMode', e.target.value)} className="bg-transparent border-transparent hover:border-slate-200 focus:bg-white text-xs px-1">
+                        <option value="cash">Cash</option>
+                        <option value="upi">UPI</option>
+                        <option value="bank">Bank</option>
+                        <option value="credit">Credit</option>
+                      </Select>
+                    </td>
                     <td className="p-3 text-center">
                       <button onClick={() => handleRemoveItem(item.id)} className="text-slate-300 hover:text-red-500 opacity-50 group-hover:opacity-100 transition-opacity">
                         <Trash2 size={16}/>
@@ -397,6 +412,7 @@ Regards,
               <Label>Payment Mode</Label>
               <Select value={paymentChannel} onChange={e=>setPaymentChannel(e.target.value)} className="!h-10">
                 <option value="cash">Cash</option>
+                <option value="upi">UPI</option>
                 <option value="bank">Bank Transfer</option>
                 <option value="cheque">Cheque</option>
                 <option value="credit">Full Credit (Later)</option>
