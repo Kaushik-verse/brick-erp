@@ -64,7 +64,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
   
   // Payment
   const [amountPaid, setAmountPaid] = useState(invoiceBuilderData?.summary?.amountPaid ? String(invoiceBuilderData.summary.amountPaid) : '');
-  const [paymentChannel, setPaymentChannel] = useState('cash');
+  const [paymentChannel, setPaymentChannel] = useState(invoiceBuilderData?.summary?.paymentChannel || 'cash');
 
   const [saving, setSaving] = useState(false);
 
@@ -155,9 +155,9 @@ export default function InvoiceBuilderScreen({ onBack }) {
       s.forEach(x => factorySettings[x.key] = x.value);
       
       const invoiceData = {
-        invoice: { invoiceNumber: invNum, date, type: invoiceBuilderData?.invoice?.type },
+        invoice: { invoiceNumber: invNum, date, type: invoiceBuilderData?.invoice?.type, paymentChannel },
         items: cleanItems,
-        summary: { subtotal, transportCharges, loadingCharges, unloadingCharges, otherCharges: otherChargesVal, grandTotal, amountPaid: paid, balanceDue, paymentStatus },
+        summary: { subtotal, transportCharges, loadingCharges, unloadingCharges, otherCharges: otherChargesVal, grandTotal, amountPaid: paid, balanceDue, paymentStatus, paymentChannel },
         customer: cust || { name: newCustomerName },
         vehicle: { vehicleNumber },
         factory: factorySettings,
@@ -410,7 +410,10 @@ Regards,
             </div>
             <div>
               <Label>Payment Mode</Label>
-              <Select value={paymentChannel} onChange={e=>setPaymentChannel(e.target.value)} className="!h-10">
+              <Select value={paymentChannel} onChange={e=>{
+                setPaymentChannel(e.target.value);
+                setItems(prev => prev.map(it => ({ ...it, paymentMode: e.target.value })));
+              }} className="!h-10">
                 <option value="cash">Cash</option>
                 <option value="upi">UPI</option>
                 <option value="bank">Bank Transfer</option>
