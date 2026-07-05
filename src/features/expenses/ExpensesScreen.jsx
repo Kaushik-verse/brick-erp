@@ -9,6 +9,7 @@ import {
   Settings,
   Tags,
   MapPin,
+  Trash2,
 } from 'lucide-react';
 import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
@@ -31,9 +32,21 @@ export const EXPENSE_CATEGORIES = [
 ];
 
 export default function ExpensesScreen() {
+  const pushToast = useUIStore((s) => s.pushToast);
   const [addOpen, setAddOpen] = useState(false);
   const expenses = useExpenses(200);
   const todayExpenses = useTodayExpenses();
+
+  const handleDelete = async (id) => {
+    if (window.confirm("Are you sure you want to delete this expense?")) {
+      try {
+        await db.expenses.delete(id);
+        pushToast("Expense deleted successfully", "success");
+      } catch (err) {
+        pushToast("Error deleting expense", "error");
+      }
+    }
+  };
 
   const todayTotal = (todayExpenses || []).reduce((s, e) => s + e.amount, 0);
 
@@ -96,7 +109,15 @@ export default function ExpensesScreen() {
                       </p>
                     </div>
                   </div>
-                  <p className="figure font-bold text-clay-50 shrink-0">{formatINR(e.amount)}</p>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <p className="figure font-bold text-clay-50">{formatINR(e.amount)}</p>
+                    <button 
+                      onClick={() => handleDelete(e.id)} 
+                      className="text-clay-500 hover:text-ledger-overdue transition-colors p-1"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </GlassCard>
               );
             })}
