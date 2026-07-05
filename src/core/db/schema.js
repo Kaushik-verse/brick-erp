@@ -237,6 +237,10 @@ export class BrickERPDatabase extends Dexie {
       }
     });
 
+    this.version(12).stores({
+      manualTransactions: '++id, date, type, amount, paymentChannel, note, createdAt',
+    });
+
     this.customers = this.table('customers');
     this.suppliers = this.table('suppliers');
     this.rawMaterials = this.table('rawMaterials');
@@ -252,6 +256,7 @@ export class BrickERPDatabase extends Dexie {
     
     this.customerCollections = this.table('customerCollections');
     this.supplierPayments = this.table('supplierPayments');
+    this.manualTransactions = this.table('manualTransactions');
     this.units = this.table('units');
     this.vehicles = this.table('vehicles');
     this.drivers = this.table('drivers');

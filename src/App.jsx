@@ -18,6 +18,7 @@ import MasterSettingsScreen from './features/dashboard/MasterSettingsScreen';
 import RecipeSettingsScreen from './features/dashboard/RecipeSettingsScreen';
 import DataMigrationScreen from './features/dashboard/DataMigrationScreen';
 import InvoiceSettingsScreen from './features/settings/InvoiceSettingsScreen';
+import PassbookScreen from './features/passbook/PassbookScreen';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
@@ -179,6 +180,8 @@ export default function App() {
         return <InvoiceSettingsScreen onBack={() => setSubScreen(null)} />;
       case 'invoice-builder':
         return <InvoiceBuilderScreen onBack={() => setSubScreen(null)} />;
+      case 'passbook':
+        return <PassbookScreen onBack={() => setSubScreen(null)} />;
       default:
         return null;
     }

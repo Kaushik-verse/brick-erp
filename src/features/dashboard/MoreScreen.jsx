@@ -1,8 +1,9 @@
-import { ChevronRight, Fuel, FileStack, CloudUpload, Settings } from 'lucide-react';
+import { ChevronRight, Fuel, FileStack, CloudUpload, Settings, BookOpen } from 'lucide-react';
 import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
 
 const MENU_ITEMS = [
+  { key: 'passbook', label: 'Cash & Bank Passbook', desc: 'Unified Day Book and ledger', icon: BookOpen },
   { key: 'expenses', label: 'Daily Expenses', desc: 'Diesel, maintenance, labour advances', icon: Fuel },
   { key: 'invoice-settings', label: 'Invoice Configuration', desc: 'Design, taxes, extra charges', icon: FileStack },
   { key: 'master-settings', label: 'Master Data', desc: 'Manage products and materials', icon: Settings },
