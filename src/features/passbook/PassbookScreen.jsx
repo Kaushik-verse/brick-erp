@@ -136,7 +136,7 @@ export default function PassbookScreen({ onBack }) {
   };
 
   return (
-    <div className="pb-32 bg-slate-50 min-h-screen">
+    <div className="pb-32">
       <ScreenHeader
         onBack={onBack}
         eyebrow="Single Source of Truth"
@@ -157,8 +157,8 @@ export default function PassbookScreen({ onBack }) {
               <button
                 key={d}
                 onClick={() => setDateRange(d)}
-                className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                  dateRange === d ? 'bg-ember-500 text-white' : 'bg-white border border-slate-200 text-slate-600'
+                className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${
+                  dateRange === d ? 'bg-ember-500 border-ember-500 text-white' : 'bg-kiln-800 border-kiln-700 text-clay-300'
                 }`}
               >
                 {d}
@@ -185,7 +185,7 @@ export default function PassbookScreen({ onBack }) {
             <select 
               value={filterMode} 
               onChange={e => setFilterMode(e.target.value)}
-              className="bg-white border border-slate-200 text-slate-600 text-xs rounded-xl px-2 outline-none focus:ring-2 focus:ring-ember-500"
+              className="bg-kiln-800 border border-kiln-700 text-clay-100 text-xs rounded-xl px-2 outline-none focus:ring-2 focus:ring-ember-500"
             >
               <option value="all">All Modes</option>
               <option value="cash">Cash Only</option>
@@ -199,19 +199,19 @@ export default function PassbookScreen({ onBack }) {
         {summaries && (
           <div className="grid grid-cols-2 gap-3">
             <GlassCard padding="p-3" className="bg-gradient-to-br from-emerald-500/10 to-teal-600/10 border-emerald-500/20">
-              <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider mb-1">Cash Flow</p>
-              <div className="flex justify-between text-xs mb-1"><span className="text-slate-500">Opening</span><span className="font-semibold text-slate-700">{formatINR(summaries.openingCash)}</span></div>
-              <div className="flex justify-between text-xs mb-1"><span className="text-emerald-600">In</span><span className="font-semibold text-emerald-700">{formatINR(summaries.cashIn)}</span></div>
-              <div className="flex justify-between text-xs mb-1"><span className="text-red-500">Out</span><span className="font-semibold text-red-600">{formatINR(summaries.cashOut)}</span></div>
-              <div className="border-t border-emerald-500/20 mt-1 pt-1 flex justify-between text-sm font-bold"><span className="text-slate-700">Closing</span><span className="text-emerald-800">{formatINR(summaries.closingCash)}</span></div>
+              <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider mb-1">Cash Flow</p>
+              <div className="flex justify-between text-xs mb-1"><span className="text-clay-400">Opening</span><span className="font-semibold text-clay-50">{formatINR(summaries.openingCash)}</span></div>
+              <div className="flex justify-between text-xs mb-1"><span className="text-emerald-400">In</span><span className="font-semibold text-emerald-300">{formatINR(summaries.cashIn)}</span></div>
+              <div className="flex justify-between text-xs mb-1"><span className="text-red-400">Out</span><span className="font-semibold text-red-400">{formatINR(summaries.cashOut)}</span></div>
+              <div className="border-t border-emerald-500/20 mt-1 pt-1 flex justify-between text-sm font-bold"><span className="text-clay-50">Closing</span><span className="text-emerald-400">{formatINR(summaries.closingCash)}</span></div>
             </GlassCard>
             
             <GlassCard padding="p-3" className="bg-gradient-to-br from-blue-500/10 to-indigo-600/10 border-blue-500/20">
-              <p className="text-[10px] text-blue-700 font-bold uppercase tracking-wider mb-1">Bank Flow</p>
-              <div className="flex justify-between text-xs mb-1"><span className="text-slate-500">Opening</span><span className="font-semibold text-slate-700">{formatINR(summaries.openingBank)}</span></div>
-              <div className="flex justify-between text-xs mb-1"><span className="text-blue-600">In</span><span className="font-semibold text-blue-700">{formatINR(summaries.bankIn)}</span></div>
-              <div className="flex justify-between text-xs mb-1"><span className="text-red-500">Out</span><span className="font-semibold text-red-600">{formatINR(summaries.bankOut)}</span></div>
-              <div className="border-t border-blue-500/20 mt-1 pt-1 flex justify-between text-sm font-bold"><span className="text-slate-700">Closing</span><span className="text-blue-800">{formatINR(summaries.closingBank)}</span></div>
+              <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wider mb-1">Bank Flow</p>
+              <div className="flex justify-between text-xs mb-1"><span className="text-clay-400">Opening</span><span className="font-semibold text-clay-50">{formatINR(summaries.openingBank)}</span></div>
+              <div className="flex justify-between text-xs mb-1"><span className="text-blue-400">In</span><span className="font-semibold text-blue-300">{formatINR(summaries.bankIn)}</span></div>
+              <div className="flex justify-between text-xs mb-1"><span className="text-red-400">Out</span><span className="font-semibold text-red-400">{formatINR(summaries.bankOut)}</span></div>
+              <div className="border-t border-blue-500/20 mt-1 pt-1 flex justify-between text-sm font-bold"><span className="text-clay-50">Closing</span><span className="text-blue-400">{formatINR(summaries.closingBank)}</span></div>
             </GlassCard>
           </div>
         )}
@@ -219,9 +219,9 @@ export default function PassbookScreen({ onBack }) {
         {/* Ledger Table (Mobile optimized cards) */}
         <div className="space-y-2 pt-2">
           {!rawEntries ? (
-            <p className="text-center text-sm text-slate-400 py-8">Loading ledger...</p>
+            <p className="text-center text-sm text-clay-400 py-8">Loading ledger...</p>
           ) : filteredEntries.length === 0 ? (
-            <p className="text-center text-sm text-slate-400 py-8">No transactions found for these filters.</p>
+            <p className="text-center text-sm text-clay-400 py-8">No transactions found for these filters.</p>
           ) : (
             filteredEntries.map((e, idx) => {
               const isCredit = e.paymentMode === 'credit';
@@ -230,32 +230,32 @@ export default function PassbookScreen({ onBack }) {
               const amountIn = e.cashIn + e.bankIn;
               const amountOut = e.cashOut + e.bankOut;
               
-              let color = 'text-slate-600';
-              if (amountIn > 0 && !isTransfer && !isOpening) color = 'text-emerald-600';
-              if (amountOut > 0 && !isTransfer && !isOpening) color = 'text-red-500';
-              if (isTransfer) color = 'text-blue-500';
-              if (isOpening) color = 'text-slate-400';
+              let color = 'text-clay-300';
+              if (amountIn > 0 && !isTransfer && !isOpening) color = 'text-emerald-400';
+              if (amountOut > 0 && !isTransfer && !isOpening) color = 'text-red-400';
+              if (isTransfer) color = 'text-blue-400';
+              if (isOpening) color = 'text-clay-500';
 
               return (
-                <GlassCard key={e.id} padding="p-3" className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setSelectedEntry(e)}>
+                <GlassCard key={e.id} padding="p-3" className="hover:bg-kiln-800/50 transition-colors cursor-pointer" onClick={() => setSelectedEntry(e)}>
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <p className="text-xs font-semibold text-slate-700 uppercase tracking-tight">{e.partyName}</p>
-                      <p className="text-[10px] text-slate-400">{formatDateDisplay(e.date)} · {e.type}</p>
+                      <p className="text-xs font-semibold text-clay-50 uppercase tracking-tight">{e.partyName}</p>
+                      <p className="text-[10px] text-clay-400">{formatDateDisplay(e.date)} · {e.type}</p>
                     </div>
                     <div className="text-right">
                       <p className={`text-sm font-bold ${color}`}>
                         {amountIn > 0 ? '+' : ''}{amountOut > 0 ? '-' : ''}{formatINR(amountIn > 0 ? amountIn : amountOut)}
                       </p>
-                      <p className="text-[10px] text-slate-400 uppercase">{e.paymentMode}</p>
+                      <p className="text-[10px] text-clay-500 uppercase">{e.paymentMode}</p>
                     </div>
                   </div>
                   
-                  <div className="flex justify-between items-end border-t border-slate-100 pt-2">
-                    <p className="text-[11px] text-slate-500 truncate max-w-[60%]">{e.description}</p>
+                  <div className="flex justify-between items-end border-t border-white/5 pt-2">
+                    <p className="text-[11px] text-clay-400 truncate max-w-[60%]">{e.description}</p>
                     <div className="text-right">
-                      <p className="text-[9px] text-slate-400 uppercase tracking-widest">Balance</p>
-                      <p className="text-xs font-semibold text-slate-700">{formatINR(e.runningBalance)}</p>
+                      <p className="text-[9px] text-clay-500 uppercase tracking-widest">Balance</p>
+                      <p className="text-xs font-semibold text-clay-100">{formatINR(e.runningBalance)}</p>
                     </div>
                   </div>
                 </GlassCard>
@@ -270,24 +270,24 @@ export default function PassbookScreen({ onBack }) {
           <div className="space-y-4 pb-8">
              <div className="flex justify-center py-4">
                 <div className="text-center">
-                  <p className="text-sm font-semibold text-slate-500 uppercase tracking-widest mb-1">{selectedEntry.type}</p>
-                  <p className="text-3xl font-bold text-slate-800">
+                  <p className="text-sm font-semibold text-clay-400 uppercase tracking-widest mb-1">{selectedEntry.type}</p>
+                  <p className="text-3xl font-bold text-clay-50">
                     {formatINR(selectedEntry.cashIn + selectedEntry.bankIn || selectedEntry.cashOut + selectedEntry.bankOut)}
                   </p>
                 </div>
              </div>
-             <div className="grid grid-cols-2 gap-y-4 text-sm bg-slate-50 p-4 rounded-2xl">
-                <div><span className="block text-[10px] text-slate-400 uppercase">Date</span><span className="font-semibold text-slate-700">{formatDateDisplay(selectedEntry.date)}</span></div>
-                <div><span className="block text-[10px] text-slate-400 uppercase">Party</span><span className="font-semibold text-slate-700">{selectedEntry.partyName}</span></div>
-                <div><span className="block text-[10px] text-slate-400 uppercase">Payment Mode</span><span className="font-semibold text-slate-700 capitalize">{selectedEntry.paymentMode}</span></div>
-                <div><span className="block text-[10px] text-slate-400 uppercase">Source</span><span className="font-semibold text-slate-700">{selectedEntry.sourceModule}</span></div>
-                <div className="col-span-2"><span className="block text-[10px] text-slate-400 uppercase">Description</span><span className="font-medium text-slate-600">{selectedEntry.description}</span></div>
-                {selectedEntry.remarks && <div className="col-span-2"><span className="block text-[10px] text-slate-400 uppercase">Remarks</span><span className="font-medium text-slate-600">{selectedEntry.remarks}</span></div>}
-                {selectedEntry.refNo && <div className="col-span-2"><span className="block text-[10px] text-slate-400 uppercase">Reference No</span><span className="font-medium text-slate-600">{selectedEntry.refNo}</span></div>}
+             <div className="grid grid-cols-2 gap-y-4 text-sm bg-kiln-800 p-4 rounded-2xl">
+                <div><span className="block text-[10px] text-clay-400 uppercase">Date</span><span className="font-semibold text-clay-50">{formatDateDisplay(selectedEntry.date)}</span></div>
+                <div><span className="block text-[10px] text-clay-400 uppercase">Party</span><span className="font-semibold text-clay-50">{selectedEntry.partyName}</span></div>
+                <div><span className="block text-[10px] text-clay-400 uppercase">Payment Mode</span><span className="font-semibold text-clay-50 capitalize">{selectedEntry.paymentMode}</span></div>
+                <div><span className="block text-[10px] text-clay-400 uppercase">Source</span><span className="font-semibold text-clay-50">{selectedEntry.sourceModule}</span></div>
+                <div className="col-span-2"><span className="block text-[10px] text-clay-400 uppercase">Description</span><span className="font-medium text-clay-300">{selectedEntry.description}</span></div>
+                {selectedEntry.remarks && <div className="col-span-2"><span className="block text-[10px] text-clay-400 uppercase">Remarks</span><span className="font-medium text-clay-300">{selectedEntry.remarks}</span></div>}
+                {selectedEntry.refNo && <div className="col-span-2"><span className="block text-[10px] text-clay-400 uppercase">Reference No</span><span className="font-medium text-clay-300">{selectedEntry.refNo}</span></div>}
              </div>
 
-             <div className="bg-emerald-50 p-3 rounded-xl">
-               <p className="text-xs font-bold text-emerald-800 text-center">Running Balance after transaction: {formatINR(selectedEntry.runningBalance)}</p>
+             <div className="bg-emerald-500/10 p-3 rounded-xl">
+               <p className="text-xs font-bold text-emerald-400 text-center">Running Balance after transaction: {formatINR(selectedEntry.runningBalance)}</p>
              </div>
           </div>
         </BottomSheet>
@@ -350,8 +350,8 @@ function AddManualEntrySheet({ open, onClose }) {
       <div className="space-y-4 pb-4">
         <GlassInput label="Date" type="date" value={date} onChange={e => setDate(e.target.value)} />
         <div>
-          <span className="block text-xs font-medium text-slate-500 mb-1.5 ml-1">Entry Type</span>
-          <select value={type} onChange={e => setType(e.target.value)} className="w-full bg-white border border-slate-200 rounded-2xl h-12 px-4 outline-none text-sm font-medium">
+          <span className="block text-xs font-medium text-clay-400 mb-1.5 ml-1">Entry Type</span>
+          <select value={type} onChange={e => setType(e.target.value)} className="w-full bg-kiln-800 border border-kiln-700 text-clay-50 rounded-2xl h-12 px-4 outline-none text-sm font-medium">
             {types.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
