@@ -195,72 +195,102 @@ export default function PassbookScreen({ onBack }) {
           </div>
         </div>
 
-        {/* Summaries */}
+        {/* Statement Summary */}
         {summaries && (
-          <div className="grid grid-cols-2 gap-3">
-            <GlassCard padding="p-3" className="bg-gradient-to-br from-emerald-500/10 to-teal-600/10 border-emerald-500/20">
-              <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider mb-1">Cash Flow</p>
-              <div className="flex justify-between text-xs mb-1"><span className="text-clay-400">Opening</span><span className="font-semibold text-clay-50">{formatINR(summaries.openingCash)}</span></div>
-              <div className="flex justify-between text-xs mb-1"><span className="text-emerald-400">In</span><span className="font-semibold text-emerald-300">{formatINR(summaries.cashIn)}</span></div>
-              <div className="flex justify-between text-xs mb-1"><span className="text-red-400">Out</span><span className="font-semibold text-red-400">{formatINR(summaries.cashOut)}</span></div>
-              <div className="border-t border-emerald-500/20 mt-1 pt-1 flex justify-between text-sm font-bold"><span className="text-clay-50">Closing</span><span className="text-emerald-400">{formatINR(summaries.closingCash)}</span></div>
-            </GlassCard>
-            
-            <GlassCard padding="p-3" className="bg-gradient-to-br from-blue-500/10 to-indigo-600/10 border-blue-500/20">
-              <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wider mb-1">Bank Flow</p>
-              <div className="flex justify-between text-xs mb-1"><span className="text-clay-400">Opening</span><span className="font-semibold text-clay-50">{formatINR(summaries.openingBank)}</span></div>
-              <div className="flex justify-between text-xs mb-1"><span className="text-blue-400">In</span><span className="font-semibold text-blue-300">{formatINR(summaries.bankIn)}</span></div>
-              <div className="flex justify-between text-xs mb-1"><span className="text-red-400">Out</span><span className="font-semibold text-red-400">{formatINR(summaries.bankOut)}</span></div>
-              <div className="border-t border-blue-500/20 mt-1 pt-1 flex justify-between text-sm font-bold"><span className="text-clay-50">Closing</span><span className="text-blue-400">{formatINR(summaries.closingBank)}</span></div>
-            </GlassCard>
-          </div>
+          <GlassCard padding="p-4" className="bg-kiln-800/80 border-white/5">
+            <h3 className="text-xs font-bold text-clay-300 uppercase tracking-widest mb-3 border-b border-white/5 pb-2">Account Summary</h3>
+            <div className="overflow-x-auto no-scrollbar">
+              <table className="w-full text-left text-xs whitespace-nowrap">
+                <thead>
+                  <tr className="text-clay-500 uppercase tracking-wider text-[10px]">
+                    <th className="pb-2 font-medium">Account</th>
+                    <th className="pb-2 font-medium text-right">Opening</th>
+                    <th className="pb-2 font-medium text-right">Deposits</th>
+                    <th className="pb-2 font-medium text-right">Withdrawals</th>
+                    <th className="pb-2 font-medium text-right">Closing</th>
+                  </tr>
+                </thead>
+                <tbody className="text-clay-100 divide-y divide-white/5">
+                  <tr>
+                    <td className="py-2.5 text-clay-400">Cash</td>
+                    <td className="py-2.5 text-right">{formatINR(summaries.openingCash)}</td>
+                    <td className="py-2.5 text-right text-emerald-400">{formatINR(summaries.cashIn)}</td>
+                    <td className="py-2.5 text-right text-red-400">{formatINR(summaries.cashOut)}</td>
+                    <td className="py-2.5 text-right font-semibold">{formatINR(summaries.closingCash)}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 text-clay-400">Bank</td>
+                    <td className="py-2.5 text-right">{formatINR(summaries.openingBank)}</td>
+                    <td className="py-2.5 text-right text-blue-400">{formatINR(summaries.bankIn)}</td>
+                    <td className="py-2.5 text-right text-red-400">{formatINR(summaries.bankOut)}</td>
+                    <td className="py-2.5 text-right font-semibold">{formatINR(summaries.closingBank)}</td>
+                  </tr>
+                  <tr className="bg-white/5 font-bold">
+                    <td className="py-2.5 px-2 text-clay-50 rounded-l-md">Total</td>
+                    <td className="py-2.5 px-2 text-right">{formatINR(summaries.openingCash + summaries.openingBank)}</td>
+                    <td className="py-2.5 px-2 text-right text-emerald-400">{formatINR(summaries.cashIn + summaries.bankIn)}</td>
+                    <td className="py-2.5 px-2 text-right text-red-400">{formatINR(summaries.cashOut + summaries.bankOut)}</td>
+                    <td className="py-2.5 px-2 text-right text-clay-50 rounded-r-md">{formatINR(summaries.closingCash + summaries.closingBank)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </GlassCard>
         )}
 
-        {/* Ledger Table (Mobile optimized cards) */}
-        <div className="space-y-2 pt-2">
+        {/* Ledger Table */}
+        <div className="pt-2">
           {!rawEntries ? (
-            <p className="text-center text-sm text-clay-400 py-8">Loading ledger...</p>
+            <p className="text-center text-sm text-clay-400 py-8">Loading statement...</p>
           ) : filteredEntries.length === 0 ? (
-            <p className="text-center text-sm text-clay-400 py-8">No transactions found for these filters.</p>
+            <p className="text-center text-sm text-clay-400 py-8">No transactions found for this period.</p>
           ) : (
-            filteredEntries.map((e, idx) => {
-              const isCredit = e.paymentMode === 'credit';
-              const isOpening = e.type.includes('Opening');
-              const isTransfer = e.type.includes('Transfer');
-              const amountIn = e.cashIn + e.bankIn;
-              const amountOut = e.cashOut + e.bankOut;
-              
-              let color = 'text-clay-300';
-              if (amountIn > 0 && !isTransfer && !isOpening) color = 'text-emerald-400';
-              if (amountOut > 0 && !isTransfer && !isOpening) color = 'text-red-400';
-              if (isTransfer) color = 'text-blue-400';
-              if (isOpening) color = 'text-clay-500';
-
-              return (
-                <GlassCard key={e.id} padding="p-3" className="hover:bg-kiln-800/50 transition-colors cursor-pointer" onClick={() => setSelectedEntry(e)}>
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="text-xs font-semibold text-clay-50 uppercase tracking-tight">{e.partyName}</p>
-                      <p className="text-[10px] text-clay-400">{formatDateDisplay(e.date)} · {e.type}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-sm font-bold ${color}`}>
-                        {amountIn > 0 ? '+' : ''}{amountOut > 0 ? '-' : ''}{formatINR(amountIn > 0 ? amountIn : amountOut)}
-                      </p>
-                      <p className="text-[10px] text-clay-500 uppercase">{e.paymentMode}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-between items-end border-t border-white/5 pt-2">
-                    <p className="text-[11px] text-clay-400 truncate max-w-[60%]">{e.description}</p>
-                    <div className="text-right">
-                      <p className="text-[9px] text-clay-500 uppercase tracking-widest">Balance</p>
-                      <p className="text-xs font-semibold text-clay-100">{formatINR(e.runningBalance)}</p>
-                    </div>
-                  </div>
-                </GlassCard>
-              );
-            })
+            <div className="bg-kiln-800/80 rounded-2xl border border-white/5 overflow-hidden">
+              <div className="overflow-x-auto no-scrollbar">
+                <table className="w-full text-left text-xs whitespace-nowrap min-w-[500px]">
+                  <thead className="bg-kiln-900/50">
+                    <tr className="text-clay-500 uppercase tracking-widest text-[10px]">
+                      <th className="py-3 px-4 font-semibold">Date</th>
+                      <th className="py-3 px-4 font-semibold">Particulars</th>
+                      <th className="py-3 px-4 font-semibold text-right">Debit (-)</th>
+                      <th className="py-3 px-4 font-semibold text-right">Credit (+)</th>
+                      <th className="py-3 px-4 font-semibold text-right">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-clay-100">
+                    {filteredEntries.map((e, idx) => {
+                      const amountIn = e.cashIn + e.bankIn;
+                      const amountOut = e.cashOut + e.bankOut;
+                      
+                      return (
+                        <tr 
+                          key={e.id} 
+                          onClick={() => setSelectedEntry(e)}
+                          className="hover:bg-white/5 cursor-pointer transition-colors"
+                        >
+                          <td className="py-3 px-4 text-[11px] text-clay-400">
+                            {new Date(e.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                          </td>
+                          <td className="py-3 px-4">
+                            <p className="font-semibold text-clay-50 truncate max-w-[150px]">{e.partyName}</p>
+                            <p className="text-[9px] text-clay-500 uppercase tracking-wider mt-0.5">{e.paymentMode}</p>
+                          </td>
+                          <td className="py-3 px-4 text-right text-red-400 font-medium">
+                            {amountOut > 0 ? formatINR(amountOut) : '-'}
+                          </td>
+                          <td className="py-3 px-4 text-right text-emerald-400 font-medium">
+                            {amountIn > 0 ? formatINR(amountIn) : '-'}
+                          </td>
+                          <td className="py-3 px-4 text-right font-bold text-clay-100">
+                            {formatINR(e.runningBalance)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </div>
       </div>
