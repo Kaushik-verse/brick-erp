@@ -16,7 +16,7 @@ import GlassCard from '../../core/ui/GlassCard';
 import GlassButton from '../../core/ui/GlassButton';
 import BottomSheet from '../../core/ui/BottomSheet';
 import { GlassInput, GlassToggleGroup, GlassTextarea } from '../../core/ui/GlassFormControls';
-import { useExpenses, useTodayExpenses } from '../../core/hooks/useDexieHooks';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../core/db/schema';
 import { formatINR, formatDateDisplay, todayISO } from '../../core/utils/format';
 import { useUIStore } from '../../core/store/uiStore';
@@ -34,8 +34,15 @@ export const EXPENSE_CATEGORIES = [
 export default function ExpensesScreen() {
   const pushToast = useUIStore((s) => s.pushToast);
   const [addOpen, setAddOpen] = useState(false);
-  const expenses = useExpenses(200);
-  const todayExpenses = useTodayExpenses();
+  const [selectedMonth, setSelectedMonth] = useState(todayISO().slice(0, 7)); // 'YYYY-MM'
+
+  const expenses = useLiveQuery(() => {
+    const [y, m] = selectedMonth.split('-');
+    const daysInMonth = new Date(Number(y), Number(m), 0).getDate();
+    const start = `${selectedMonth}-01`;
+    const end = `${selectedMonth}-${String(daysInMonth).padStart(2, '0')}`;
+    return db.expenses.where('date').between(start, end, true, true).reverse().sortBy('date');
+  }, [selectedMonth], []);
 
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this expense?")) {
@@ -48,7 +55,7 @@ export default function ExpensesScreen() {
     }
   };
 
-  const todayTotal = (todayExpenses || []).reduce((s, e) => s + e.amount, 0);
+  const monthTotal = (expenses || []).reduce((s, e) => s + e.amount, 0);
 
   const categoryTotals = useMemo(() => {
     const totals = {};
@@ -71,21 +78,40 @@ export default function ExpensesScreen() {
       />
 
       <div className="px-5 space-y-4">
-        <GlassCard padding="p-4" className="bg-gradient-to-br from-ember-700/15 to-kiln-800/30">
-          <p className="text-xs text-clay-300 uppercase tracking-wide mb-1">Today's Expenses</p>
-          <p className="figure text-2xl font-bold text-clay-50">{formatINR(todayTotal)}</p>
+        <div className="flex items-center justify-between">
+          <input 
+            type="month" 
+            value={selectedMonth} 
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="bg-slate-100 border-none rounded-lg px-3 py-1.5 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#C65D2E]"
+          />
+        </div>
+
+        <GlassCard padding="p-4" className="bg-gradient-to-br from-ember-700/15 to-kiln-800/30 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Banknote size={64} />
+          </div>
+          <p className="text-xs text-clay-300 uppercase tracking-wide mb-1">Total Expenses ({new Date(selectedMonth + '-01').toLocaleDateString('en-IN', {month:'long', year:'numeric'})})</p>
+          <p className="figure text-3xl font-bold text-clay-50">{formatINR(monthTotal)}</p>
         </GlassCard>
 
         <div className="grid grid-cols-2 gap-3">
-          {EXPENSE_CATEGORIES.map(({ key, icon: Icon }) => (
-            <GlassCard key={key} padding="p-3">
-              <Icon size={15} className="text-ember-400 mb-1.5" />
-              <p className="text-[11px] text-clay-400 leading-tight mb-1">{key}</p>
-              <p className="figure text-sm font-bold text-clay-100">
-                {formatINR(categoryTotals[key] || 0)}
-              </p>
-            </GlassCard>
-          ))}
+          {EXPENSE_CATEGORIES.map(({ key, icon: Icon }) => {
+            const amt = categoryTotals[key] || 0;
+            const pct = monthTotal > 0 ? (amt / monthTotal) * 100 : 0;
+            return (
+              <GlassCard key={key} padding="p-3">
+                <Icon size={15} className="text-ember-400 mb-1.5" />
+                <p className="text-[11px] text-clay-400 leading-tight mb-1">{key}</p>
+                <p className="figure text-sm font-bold text-clay-100 mb-2">
+                  {formatINR(amt)}
+                </p>
+                <div className="w-full bg-slate-200/10 rounded-full h-1.5">
+                  <div className="bg-ember-500 h-1.5 rounded-full" style={{ width: `${pct}%` }}></div>
+                </div>
+              </GlassCard>
+            );
+          })}
         </div>
 
         <div>
