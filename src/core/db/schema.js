@@ -241,6 +241,17 @@ export class BrickERPDatabase extends Dexie {
       manualTransactions: '++id, date, type, amount, paymentChannel, note, createdAt',
     });
 
+    this.version(13).stores({
+      // No schema change
+    }).upgrade(async tx => {
+      // Fix reorder level for Quarry Dust since unit is now 'unit' (truckloads) instead of kg
+      await tx.table('rawMaterials').where('name').equalsIgnoreCase('Quarry Dust').modify(item => {
+        if (item.reorderLevel >= 100) {
+          item.reorderLevel = 5; // 5 units instead of 3000
+        }
+      });
+    });
+
     this.customers = this.table('customers');
     this.suppliers = this.table('suppliers');
     this.rawMaterials = this.table('rawMaterials');
@@ -285,7 +296,7 @@ async function doSeedDatabaseIfEmpty() {
       { name: 'Fly Ash', unit: 'kg', currentStock: 0, reorderLevel: 5000, avgRate: 0.5, isActive: 1 },
       { name: 'Lime', unit: 'kg', currentStock: 0, reorderLevel: 1000, avgRate: 8, isActive: 1 },
       { name: 'Gypsum', unit: 'kg', currentStock: 0, reorderLevel: 500, avgRate: 6, isActive: 1 },
-      { name: 'Quarry Dust', unit: 'unit', currentStock: 0, reorderLevel: 3000, avgRate: 2400, isActive: 1 },
+      { name: 'Quarry Dust', unit: 'unit', currentStock: 0, reorderLevel: 5, avgRate: 2400, isActive: 1 },
     ]);
   }
 
