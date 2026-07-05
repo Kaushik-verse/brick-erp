@@ -6,10 +6,24 @@ import GlassButton from '../../core/ui/GlassButton';
 import AddProductionSheet from './AddProductionSheet';
 import { useProductionLog } from '../../core/hooks/useDexieHooks';
 import { formatINR, formatNumber, formatDateDisplay } from '../../core/utils/format';
+import { useUIStore } from '../../core/store/uiStore';
 
 export default function ProductionScreen() {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [editRun, setEditRun] = useState(null);
   const productionLog = useProductionLog(60);
+  const pushToast = useUIStore(s => s.pushToast);
+
+  const handleDelete = async (run) => {
+    if (!window.confirm(`Delete ${run.quantity} ${run.brickSize} bricks? This will deduct finished stock and restore raw materials.`)) return;
+    try {
+      const { deleteProductionBatch } = await import('../../core/db/ledgerEngine');
+      await deleteProductionBatch(run.id);
+      pushToast("Production deleted", "success");
+    } catch (e) {
+      pushToast(e.message || "Could not delete", "error");
+    }
+  };
 
   return (
     <div className="pb-32 md:pb-12 md:pt-6">
@@ -41,6 +55,20 @@ export default function ProductionScreen() {
                 <p className="font-semibold text-clay-50">{run.brickSize} Brick</p>
                 <p className="text-xs text-clay-400">{formatDateDisplay(run.date)}</p>
               </div>
+              <div className="flex gap-2">
+                <button onClick={() => { setEditRun(run); setSheetOpen(true); }} className="text-clay-400 hover:text-clay-100 p-1 text-xs uppercase font-bold tracking-wider">
+                  Edit
+                </button>
+                <button onClick={() => handleDelete(run)} className="text-red-400 hover:text-red-300 p-1 text-xs uppercase font-bold tracking-wider">
+                  Delete
+                </button>
+              </div>
+            </div>
+            <div className="flex items-end justify-between border-t border-white/5 pt-2.5">
+              <div className="grid grid-cols-2 gap-4">
+                <Stat label="Material Cost" value={formatINR(run.materialCost || run.totalCost)} />
+                <Stat label="Cost / Brick" value={`₹${run.costPerBrick}`} highlight />
+              </div>
               <div className="text-right">
                 <p className="figure text-lg font-bold text-ember-400">
                   {formatNumber(run.quantity)}
@@ -48,15 +76,11 @@ export default function ProductionScreen() {
                 <p className="text-[11px] text-clay-500">bricks</p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-white/5">
-              <Stat label="Material Cost" value={formatINR(run.materialCost || run.totalCost)} />
-              <Stat label="Cost / Brick" value={`₹${run.costPerBrick}`} highlight />
-            </div>
           </GlassCard>
         ))}
       </div>
 
-      <AddProductionSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
+      <AddProductionSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setEditRun(null); }} editRun={editRun} />
     </div>
   );
 }

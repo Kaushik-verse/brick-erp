@@ -10,7 +10,7 @@ import { todayISO } from '../../core/utils/format';
 import { hapticTap } from '../../core/utils/nativeFileBridge';
 import { db } from '../../core/db/schema';
 
-export default function AddSaleSheet({ open, onClose }) {
+export default function AddSaleSheet({ open, onClose, editSale }) {
   const pushToast = useUIStore((s) => s.pushToast);
   const customers = useCustomers();
   const finishedStock = useFinishedStock();
@@ -27,6 +27,23 @@ export default function AddSaleSheet({ open, onClose }) {
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open && editSale) {
+      setDate(editSale.date);
+      setCustomerId(String(editSale.customerId));
+      setBrickSize(editSale.brickSize || '4-inch');
+      setQuantity(String(editSale.quantity || ''));
+      setRate(String(editSale.rate || ''));
+      setAmountPaid(String(editSale.amountPaid || ''));
+      setPaymentChannel(editSale.paymentChannel || 'cash');
+    } else if (open && !editSale) {
+      setDate(todayISO());
+      setQuantity('');
+      setAmountPaid('');
+      setError('');
+    }
+  }, [open, editSale]);
 
   useEffect(() => {
     const stockRow = (finishedStock || []).find((f) => f.brickSize === brickSize);
@@ -89,6 +106,11 @@ export default function AddSaleSheet({ open, onClose }) {
     }
     setSubmitting(true);
     try {
+      if (editSale) {
+        const { deleteSale } = await import('../../core/db/ledgerEngine');
+        await deleteSale(editSale.id);
+      }
+
       await recordSale({
         date,
         customerId: Number(customerId),
@@ -99,7 +121,7 @@ export default function AddSaleSheet({ open, onClose }) {
         paymentChannel,
       });
       await hapticTap();
-      pushToast('Sale recorded successfully', 'success');
+      pushToast(editSale ? 'Sale updated successfully' : 'Sale recorded successfully', 'success');
       resetForm();
       onClose();
     } catch (e) {
@@ -258,7 +280,7 @@ export default function AddSaleSheet({ open, onClose }) {
         {error && <p className="text-sm text-ledger-overdue text-center">{error}</p>}
 
         <GlassButton fullWidth onClick={handleSubmit} disabled={submitting} icon={Receipt}>
-          {submitting ? 'Saving…' : 'Record Sale'}
+          {submitting ? 'Saving…' : (editSale ? 'Update Sale' : 'Record Sale')}
         </GlassButton>
       </div>
     </BottomSheet>

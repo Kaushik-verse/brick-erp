@@ -14,7 +14,7 @@ import { useUIStore } from '../../core/store/uiStore';
 import { todayISO, formatNumber } from '../../core/utils/format';
 import { hapticTap } from '../../core/utils/nativeFileBridge';
 
-export default function AddProductionSheet({ open, onClose }) {
+export default function AddProductionSheet({ open, onClose, editRun }) {
   const pushToast = useUIStore((s) => s.pushToast);
 
   const [date, setDate] = useState(todayISO());
@@ -24,6 +24,18 @@ export default function AddProductionSheet({ open, onClose }) {
   const [shortfalls, setShortfalls] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open && editRun) {
+      setDate(editRun.date);
+      setBrickSize(editRun.brickSize);
+      setQuantity(String(editRun.quantity));
+    } else if (open && !editRun) {
+      setDate(todayISO());
+      setQuantity('');
+      setError('');
+    }
+  }, [open, editRun]);
 
   const products = useLiveQuery(() => db.finishedStock.toArray(), [], []);
   const materials = useLiveQuery(() => db.rawMaterials.toArray(), [], []);
@@ -62,6 +74,11 @@ export default function AddProductionSheet({ open, onClose }) {
     }
     setSubmitting(true);
     try {
+      if (editRun) {
+        const { deleteProductionBatch } = await import('../../core/db/ledgerEngine');
+        await deleteProductionBatch(editRun.id);
+      }
+      
       const result = await recordProduction({
         date,
         brickSize,
@@ -69,7 +86,7 @@ export default function AddProductionSheet({ open, onClose }) {
         allowOverdraw: false, // Strict block on overdraw
       });
       await hapticTap();
-      pushToast(`Logged ${qtyNum} ${brickSize} bricks · Cost/brick ₹${result.costPerBrick}`, 'success');
+      pushToast(editRun ? 'Production updated' : `Logged ${qtyNum} ${brickSize} bricks`, 'success');
       resetForm();
       onClose();
     } catch (e) {

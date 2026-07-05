@@ -13,6 +13,7 @@ import { useUIStore } from '../../core/store/uiStore';
 
 export default function SalesScreen({ onNavigate }) {
   const [addSaleOpen, setAddSaleOpen] = useState(false);
+  const [editSale, setEditSale] = useState(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const [search, setSearch] = useState('');
   const customers = useCustomers();
@@ -130,9 +131,17 @@ export default function SalesScreen({ onNavigate }) {
         onClose={() => setSelectedCustomerId(null)}
         customerId={selectedCustomerId}
         onNavigate={onNavigate}
+        onEditSale={(sale) => {
+          setEditSale(sale);
+          setAddSaleOpen(true);
+        }}
       />
       {addSaleOpen && (
-        <AddSaleSheet open={addSaleOpen} onClose={() => setAddSaleOpen(false)} />
+        <AddSaleSheet 
+          open={addSaleOpen} 
+          onClose={() => { setAddSaleOpen(false); setEditSale(null); }} 
+          editSale={editSale} 
+        />
       )}
     </div>
   );

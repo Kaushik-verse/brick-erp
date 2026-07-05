@@ -9,7 +9,7 @@ import { usePassbook } from '../../core/hooks/usePassbook';
 import { formatINR, formatDateDisplay, todayISO } from '../../core/utils/format';
 import { db } from '../../core/db/schema';
 import { useUIStore } from '../../core/store/uiStore';
-import { hapticTap } from '../../core/utils/nativeFileBridge';
+import { hapticTap, saveAndShareBlob } from '../../core/utils/nativeFileBridge';
 
 export default function PassbookScreen({ onBack }) {
   const pushToast = useUIStore(s => s.pushToast);
@@ -127,12 +127,12 @@ export default function PassbookScreen({ onBack }) {
       `"${e.date}","${e.type}","${e.partyName}","${e.description}","${e.paymentMode}",${e.cashIn},${e.cashOut},${e.bankIn},${e.bankOut},${e.runningBalance},"${e.refNo}"`
     ).join("\n");
     const blob = new Blob([header + rows], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `DayBook_${todayISO()}.csv`;
-    a.click();
-    pushToast("Exported to CSV", "success");
+    try {
+      await saveAndShareBlob(blob, `DayBook_${todayISO()}.csv`, 'text/csv');
+      pushToast("Exported to CSV", "success");
+    } catch(e) {
+      pushToast("Failed to export CSV", "error");
+    }
   };
 
   return (

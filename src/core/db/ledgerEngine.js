@@ -301,13 +301,26 @@ export async function addSupplierPayment(supplierId, amount, paymentChannel, dat
 }
 
 export async function deleteProductionBatch(productionId) {
-  return db.transaction('rw', db.productionLog, db.finishedStock, async () => {
+  return db.transaction('rw', db.productionLog, db.finishedStock, db.rawMaterials, async () => {
     const log = await db.productionLog.get(productionId);
     if (!log) throw new Error('Production record not found.');
 
     const stock = await db.finishedStock.where('brickSize').equals(log.brickSize).first();
     if (!stock || stock.currentStock < log.quantity) {
       throw new Error('Cannot delete: Finished goods have already been sold (insufficient stock to revert).');
+    }
+
+    // Restore raw materials
+    if (log.materialsUsed && log.materialsUsed.materialsRequired) {
+      const materials = await db.rawMaterials.toArray();
+      const byId = Object.fromEntries(materials.map(m => [m.id, m]));
+      for (const [matId, qty] of Object.entries(log.materialsUsed.materialsRequired)) {
+        if (qty > 0 && byId[matId]) {
+           await db.rawMaterials.update(Number(matId), {
+             currentStock: round2(byId[matId].currentStock + qty)
+           });
+        }
+      }
     }
 
     await db.finishedStock.update(stock.id, {

@@ -13,7 +13,7 @@ import { useUIStore } from '../../core/store/uiStore';
 import AddCollectionSheet from './AddCollectionSheet';
 import { generateStatementPDF } from '../documents/pdfExport';
 
-export default function CustomerLedgerSheet({ open, onClose, customerId, onNavigate }) {
+export default function CustomerLedgerSheet({ open, onClose, customerId, onNavigate, onEditSale }) {
   const pushToast = useUIStore((s) => s.pushToast);
   const setInvoiceBuilderData = useUIStore((s) => s.setInvoiceBuilderData);
   const [sending, setSending] = useState(false);
@@ -246,6 +246,9 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
                       </p>
                       <div className="flex items-center gap-2">
                         <StatusPill status={status} size="sm" />
+                        <button onClick={() => onEditSale && onEditSale(t)} className="text-clay-400 hover:text-clay-100 p-1 text-[10px] uppercase font-bold tracking-wider touch-manipulation">
+                          Edit
+                        </button>
                         <button onClick={() => handleDelete(t)} className="text-clay-500 hover:text-ledger-overdue transition-colors p-1 touch-manipulation">
                           <Trash2 size={14} />
                         </button>
