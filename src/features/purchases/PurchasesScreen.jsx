@@ -8,10 +8,9 @@ import AddPurchaseSheet from './AddPurchaseSheet';
 import SupplierLedgerSheet from './SupplierLedgerSheet';
 import { useSuppliers, usePurchaseLog, useRawMaterials } from '../../core/hooks/useDexieHooks';
 import { formatINR } from '../../core/utils/format';
-import { buildSupplierReminderLink, openWhatsAppLink } from '../../core/utils/whatsapp';
 import { useUIStore } from '../../core/store/uiStore';
 
-export default function PurchasesScreen() {
+export default function PurchasesScreen({ onBack, hideExport = false }) {
   const [addOpen, setAddOpen] = useState(false);
   const [selectedSupplierId, setSelectedSupplierId] = useState(null);
   const [search, setSearch] = useState('');
@@ -23,7 +22,7 @@ export default function PurchasesScreen() {
   const filtered = useMemo(() => {
     if (!suppliers) return [];
     const q = search.trim().toLowerCase();
-    const list = q ? suppliers.filter((s) => s.name.toLowerCase().includes(q)) : suppliers;
+    const list = q ? suppliers.filter((s) => s.name.toLowerCase().includes(q) || (s.phone || '').includes(q)) : suppliers;
     return [...list].sort((a, b) => (b.outstandingBalance || 0) - (a.outstandingBalance || 0));
   }, [suppliers, search]);
 
@@ -44,8 +43,9 @@ export default function PurchasesScreen() {
   return (
     <div className="pb-32 md:pb-12 md:pt-6">
       <ScreenHeader
-        eyebrow="Payables"
-        title="Purchases & Suppliers"
+        onBack={onBack}
+        eyebrow="Purchases & Payables"
+        title="Suppliers"
         action={
           <GlassButton size="sm" icon={Plus} onClick={() => setAddOpen(true)}>
             Purchase
@@ -61,13 +61,15 @@ export default function PurchasesScreen() {
               {formatINR(totalPayable)}
             </p>
           </div>
-          <GlassButton size="sm" variant="glass" icon={FileDown} onClick={handleExport}>
-            Export
-          </GlassButton>
+          {!hideExport && (
+            <GlassButton size="sm" variant="glass" icon={FileDown} onClick={handleExport}>
+              Export
+            </GlassButton>
+          )}
         </GlassCard>
 
         <GlassInput
-          placeholder="Search suppliers…"
+          placeholder="Search by name or phone…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -94,14 +96,11 @@ export default function PurchasesScreen() {
                 </p>
                 {s.outstandingBalance > 0 && (
                   <button
+                    aria-label={`WhatsApp message to ${s.name}`}
                     onClick={async (e) => {
                       e.stopPropagation();
-                      const link = buildSupplierReminderLink({
-                        name: s.name,
-                        phone: s.phone,
-                        amount: s.outstandingBalance,
-                      });
-                      await openWhatsAppLink(link);
+                      const { sendSupplierBalanceMessage } = await import('../../core/billing/documents');
+                      await sendSupplierBalanceMessage(s.id);
                     }}
                     className="w-9 h-9 rounded-full bg-[#25D366]/15 flex items-center justify-center touch-manipulation"
                   >

@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Receipt, Banknote, Landmark, UserPlus } from 'lucide-react';
+import { Receipt, Banknote, Landmark, UserPlus, Smartphone, Send } from 'lucide-react';
 import BottomSheet from '../../core/ui/BottomSheet';
 import GlassButton from '../../core/ui/GlassButton';
 import { GlassInput, GlassSelect, GlassToggleGroup } from '../../core/ui/GlassFormControls';
-import { recordSale } from '../../core/db/ledgerEngine';
+import { recordSale, updateSale } from '../../core/db/ledgerEngine';
 import { useCustomers, useFinishedStock } from '../../core/hooks/useDexieHooks';
 import { useUIStore } from '../../core/store/uiStore';
-import { todayISO } from '../../core/utils/format';
+import { todayISO, formatINR } from '../../core/utils/format';
 import { hapticTap } from '../../core/utils/nativeFileBridge';
 import { db } from '../../core/db/schema';
 
@@ -37,27 +37,42 @@ export default function AddSaleSheet({ open, onClose, editSale }) {
       setRate(String(editSale.rate || ''));
       setAmountPaid(String(editSale.amountPaid || ''));
       setPaymentChannel(editSale.paymentChannel || 'cash');
+      setError('');
     } else if (open && !editSale) {
       setDate(todayISO());
       setQuantity('');
       setAmountPaid('');
+      setRate('');
       setError('');
     }
   }, [open, editSale]);
 
+  // Fill the default selling price when the product changes (not while editing).
   useEffect(() => {
+    if (editSale) return;
     const stockRow = (finishedStock || []).find((f) => f.brickSize === brickSize);
-    if (stockRow && !rate) setRate(String(stockRow.sellingPrice));
-  }, [brickSize, finishedStock]);
+    if (stockRow) setRate(String(stockRow.sellingPrice ?? ''));
+  }, [brickSize, finishedStock, editSale]);
+
+  // Default to the first active product if the current one doesn't exist.
+  useEffect(() => {
+    const active = (finishedStock || []).filter((f) => f.isActive !== 0);
+    if (active.length && !active.some((f) => f.brickSize === brickSize)) {
+      setBrickSize(active[0].brickSize);
+    }
+  }, [finishedStock, brickSize]);
 
   const selectedStock = (finishedStock || []).find((f) => f.brickSize === brickSize);
-  const availableStock = selectedStock?.currentStock || 0;
+  // When editing, the bricks of the original sale go back to stock first.
+  const editCredit = editSale && editSale.brickSize === brickSize ? Number(editSale.quantity) || 0 : 0;
+  const availableStock = (selectedStock?.currentStock || 0) + editCredit;
 
   const qtyNum = Number(quantity) || 0;
   const rateNum = Number(rate) || 0;
-  const totalAmount = qtyNum * rateNum;
+  const totalAmount = Math.round(qtyNum * rateNum * 100) / 100;
   const paidNum = Number(amountPaid) || 0;
   const balanceDue = Math.max(totalAmount - paidNum, 0);
+  const selectedCustomer = (customers || []).find((c) => String(c.id) === String(customerId));
   const remainingStock = availableStock - qtyNum;
 
   const handleQtyChange = (delta) => {
@@ -74,19 +89,28 @@ export default function AddSaleSheet({ open, onClose, editSale }) {
 
   const handleCreateCustomer = async () => {
     if (!newCustomerName.trim()) return;
+    const existing = await db.customers.where('name').equalsIgnoreCase(newCustomerName.trim()).first();
+    if (existing) {
+      setCustomerId(String(existing.id));
+      setShowNewCustomer(false);
+      setNewCustomerName('');
+      setNewCustomerPhone('');
+      pushToast(`${existing.name} already exists — selected`, 'info');
+      return;
+    }
     const id = await db.customers.add({
       name: newCustomerName.trim(),
       phone: newCustomerPhone.trim(),
       outstandingBalance: 0,
       createdAt: new Date().toISOString(),
     });
-    setCustomerId(id);
+    setCustomerId(String(id));
     setShowNewCustomer(false);
     setNewCustomerName('');
     setNewCustomerPhone('');
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (shareAfter = false) => {
     setError('');
     if (!customerId) {
       setError('Select or add a customer.');
@@ -104,22 +128,35 @@ export default function AddSaleSheet({ open, onClose, editSale }) {
       setError('Enter a valid rate.');
       return;
     }
+    if (paidNum < 0) {
+      setError('Amount paid cannot be negative.');
+      return;
+    }
+    if (paidNum > totalAmount + 0.009) {
+      setError(`Amount paid is more than the bill (${formatINR(totalAmount, { decimals: 2 })}). Record extra money as a payment on the customer.`);
+      return;
+    }
     setSubmitting(true);
     try {
-      if (editSale) {
-        const { deleteSale } = await import('../../core/db/ledgerEngine');
-        await deleteSale(editSale.id);
-      }
-
-      await recordSale({
+      const values = {
         date,
         customerId: Number(customerId),
         brickSize,
         quantity: qtyNum,
         rate: rateNum,
         amountPaid: paidNum,
-        paymentChannel,
-      });
+        paymentChannel: paidNum > 0 ? paymentChannel : 'credit',
+      };
+      const res = editSale ? await updateSale(editSale.id, values) : await recordSale(values);
+      if (shareAfter && res?.id) {
+        try {
+          const { shareSaleInvoice } = await import('../../core/billing/documents');
+          await shareSaleInvoice(res.id);
+        } catch (e) {
+          console.error(e);
+          pushToast('Sale saved, but the invoice could not be shared', 'error');
+        }
+      }
       await hapticTap();
       pushToast(editSale ? 'Sale updated successfully' : 'Sale recorded successfully', 'success');
       resetForm();
@@ -132,7 +169,7 @@ export default function AddSaleSheet({ open, onClose, editSale }) {
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Record Sale">
+    <BottomSheet open={open} onClose={onClose} title={editSale ? 'Edit Sale' : 'Record Sale'}>
       <div className="space-y-4">
         <GlassInput
           label="Date"
@@ -153,9 +190,15 @@ export default function AddSaleSheet({ open, onClose, editSale }) {
               {(customers || []).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                  {c.phone ? ` · ${c.phone}` : ''}
                 </option>
               ))}
             </GlassSelect>
+            {selectedCustomer && (selectedCustomer.outstandingBalance || 0) > 0 && (
+              <p className="text-[11px] text-ledger-overdue mt-1.5 ml-1">
+                Already owes {formatINR(selectedCustomer.outstandingBalance)}
+              </p>
+            )}
             <button
               onClick={() => setShowNewCustomer(true)}
               className="flex items-center gap-1.5 mt-2 ml-1 text-xs font-semibold text-ember-400 touch-manipulation"
@@ -203,26 +246,31 @@ export default function AddSaleSheet({ open, onClose, editSale }) {
 
         <div className="grid grid-cols-1 gap-4">
           <div>
-            <label className="block text-xs font-medium text-clay-300 mb-1.5 px-1">
+            <span className="block text-xs font-medium text-clay-300/80 mb-1.5 ml-1 tracking-wide uppercase">
               Quantity
-            </label>
+            </span>
             <div className="flex items-center gap-1">
               <button 
-                className="w-10 h-10 rounded-xl bg-glass-panel border border-glass-border flex items-center justify-center text-clay-100 active:scale-95 transition-transform"
+                className="w-16 h-12 rounded-xl glass-surface-light flex items-center justify-center text-xs font-semibold text-clay-100 active:scale-95 transition-transform touch-manipulation"
+                type="button"
+                aria-label="Decrease by 500"
                 onClick={() => handleQtyChange(-500)}
-              >-</button>
+              >−500</button>
               <input
                 type="number"
                 inputMode="numeric"
-                className="flex-1 h-10 bg-glass-panel border border-glass-border rounded-xl text-center text-clay-50 placeholder-clay-500 text-sm focus:outline-none focus:ring-1 focus:ring-ember-500"
+                aria-label="Quantity"
+                className="flex-1 min-w-0 h-12 glass-surface-light rounded-xl text-center text-clay-50 placeholder:text-clay-400/60 figure focus:outline-none focus:ring-2 focus:ring-ember-500/50"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
                 placeholder="0"
               />
               <button 
-                className="w-10 h-10 rounded-xl bg-glass-panel border border-glass-border flex items-center justify-center text-clay-100 active:scale-95 transition-transform"
+                className="w-16 h-12 rounded-xl glass-surface-light flex items-center justify-center text-xs font-semibold text-clay-100 active:scale-95 transition-transform touch-manipulation"
+                type="button"
+                aria-label="Increase by 500"
                 onClick={() => handleQtyChange(500)}
-              >+</button>
+              >+500</button>
             </div>
           </div>
           <GlassInput
@@ -242,25 +290,48 @@ export default function AddSaleSheet({ open, onClose, editSale }) {
           </div>
         )}
 
-        <GlassInput
-          label="Amount Paid Now"
-          type="number"
-          inputMode="decimal"
-          prefix="₹"
-          placeholder="0 for full credit"
-          value={amountPaid}
-          onChange={(e) => setAmountPaid(e.target.value)}
-        />
+        <div>
+          <GlassInput
+            label="Amount Paid Now"
+            type="number"
+            inputMode="decimal"
+            prefix="₹"
+            placeholder="0 for full credit"
+            value={amountPaid}
+            onChange={(e) => setAmountPaid(e.target.value)}
+          />
+          {totalAmount > 0 && (
+            <div className="flex gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => setAmountPaid(String(totalAmount))}
+                className="flex-1 h-9 rounded-xl glass-surface-light text-xs font-semibold text-ledger-paid touch-manipulation"
+              >
+                Paid in full
+              </button>
+              <button
+                type="button"
+                onClick={() => setAmountPaid('')}
+                className="flex-1 h-9 rounded-xl glass-surface-light text-xs font-semibold text-ledger-credit touch-manipulation"
+              >
+                Full credit
+              </button>
+            </div>
+          )}
+        </div>
 
-        <GlassToggleGroup
-          label="Payment Channel"
-          value={paymentChannel}
-          onChange={setPaymentChannel}
-          options={[
-            { value: 'cash', label: 'Cash', icon: Banknote },
-            { value: 'bank', label: 'Bank', icon: Landmark },
-          ]}
-        />
+        {paidNum > 0 && (
+          <GlassToggleGroup
+            label="Paid By"
+            value={paymentChannel}
+            onChange={setPaymentChannel}
+            options={[
+              { value: 'cash', label: 'Cash', icon: Banknote },
+              { value: 'upi', label: 'UPI', icon: Smartphone },
+              { value: 'bank', label: 'Bank', icon: Landmark },
+            ]}
+          />
+        )}
 
         {totalAmount > 0 && (
           <div className="glass-surface-light rounded-2xl p-3.5 flex justify-between items-center">
@@ -279,9 +350,20 @@ export default function AddSaleSheet({ open, onClose, editSale }) {
 
         {error && <p className="text-sm text-ledger-overdue text-center">{error}</p>}
 
-        <GlassButton fullWidth onClick={handleSubmit} disabled={submitting} icon={Receipt}>
-          {submitting ? 'Saving…' : (editSale ? 'Update Sale' : 'Record Sale')}
-        </GlassButton>
+        <div className="grid grid-cols-2 gap-2">
+          <GlassButton fullWidth variant="glass" onClick={() => handleSubmit(false)} disabled={submitting} icon={Receipt}>
+            {submitting ? 'Saving…' : editSale ? 'Update' : 'Save'}
+          </GlassButton>
+          <GlassButton
+            fullWidth
+            onClick={() => handleSubmit(true)}
+            disabled={submitting}
+            icon={Send}
+            className="!from-[#25D366] !to-[#1FAF54] !border-[#25D366]/40 !shadow-none"
+          >
+            Save & Bill
+          </GlassButton>
+        </div>
       </div>
     </BottomSheet>
   );

@@ -1,0 +1,68 @@
+/* Brick ERP isometric scenes.
+   Shading model and base classes come from the Anatomy kit (ISO_CSS, MIT © Ryan),
+   injected at runtime. Here each material re-tints the kit's tone variables, and the
+   gentle loops are defined. Every loop stops for prefers-reduced-motion. */
+
+.illo { width: 100%; }
+.illo .iso-svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* Shared light theme (matches the New app) */
+.illo.iso[data-theme='light'] {
+  --anatomy-weight: .7px;
+  --anatomy-halo: #8a6a4a; --anatomy-halo-opacity: .28;
+}
+
+/* ---- Materials: paper (base), top, four side shades, line tones ---- */
+.illo .m-floor  { --anatomy-paper:#EFE8DE; --anatomy-top:#F8F3EC; --anatomy-shade-0:#D9CFC1; --anatomy-shade-1:#E1D8CB; --anatomy-shade-2:#E8E0D4; --anatomy-shade-3:#EEE7DD; --anatomy-lo:#C7B9A6; --anatomy-mid:#A8957E; --anatomy-hi:#7A6852; --anatomy-faint:#DCD1C2; --anatomy-dot:#B3A28B; }
+.illo .m-road   { --anatomy-paper:#8E949C; --anatomy-top:#A3A9B1; --anatomy-shade-0:#6C727A; --anatomy-shade-1:#757B83; --anatomy-shade-2:#7E848C; --anatomy-shade-3:#878D95; --anatomy-lo:#5E646C; --anatomy-mid:#4E545C; --anatomy-hi:#3A4048; --anatomy-faint:#B9BEC4; }
+.illo .m-paint  { --anatomy-hi:#FFFFFF; }
+.illo .m-brick  { --anatomy-paper:#D9805A; --anatomy-top:#ECA07E; --anatomy-shade-0:#B95D39; --anatomy-shade-1:#C66A45; --anatomy-shade-2:#D07650; --anatomy-shade-3:#DA845E; --anatomy-lo:#A44E2E; --anatomy-mid:#8E3F23; --anatomy-hi:#6E2E17; --anatomy-faint:#E6A587; }
+.illo .m-steel  { --anatomy-paper:#C3CDD9; --anatomy-top:#E2E8EF; --anatomy-shade-0:#9DACBE; --anatomy-shade-1:#AAB8C8; --anatomy-shade-2:#B6C2D0; --anatomy-shade-3:#C2CCD8; --anatomy-lo:#8796AA; --anatomy-mid:#66758C; --anatomy-hi:#44526A; --anatomy-faint:#D3DAE3; --anatomy-dot:#5D6B82; }
+.illo .m-steel-dark { --anatomy-paper:#7C889A; --anatomy-top:#97A3B4; --anatomy-shade-0:#5F6A7B; --anatomy-shade-1:#677385; --anatomy-shade-2:#707C8E; --anatomy-shade-3:#798597; --anatomy-lo:#525D6D; --anatomy-mid:#434D5C; --anatomy-hi:#2F3845; }
+.illo .m-blue   { --anatomy-paper:#7398E0; --anatomy-top:#A9C2F2; --anatomy-shade-0:#5079C9; --anatomy-shade-1:#5D85D2; --anatomy-shade-2:#6A90D9; --anatomy-shade-3:#789CE0; --anatomy-lo:#3F65B4; --anatomy-mid:#30539C; --anatomy-hi:#203D7A; --anatomy-faint:#BFD0F5; }
+.illo .m-wood   { --anatomy-paper:#D6AE78; --anatomy-top:#E9C99A; --anatomy-shade-0:#B68752; --anatomy-shade-1:#C1925C; --anatomy-shade-2:#CB9D67; --anatomy-shade-3:#D3A872; --anatomy-lo:#9A6F3E; --anatomy-mid:#7F5A30; --anatomy-hi:#5E4122; --anatomy-faint:#E3C49A; }
+.illo .m-ash    { --anatomy-paper:#C2C7CF; --anatomy-top:#E3E6EA; --anatomy-shade-0:#9EA5AF; --anatomy-shade-1:#A9B0B9; --anatomy-shade-2:#B4BAC3; --anatomy-shade-3:#BFC4CC; --anatomy-lo:#8A919C; --anatomy-mid:#6D7480; --anatomy-hi:#4E5560; }
+.illo .m-lime   { --anatomy-paper:#EEDFA4; --anatomy-top:#FAF1CF; --anatomy-shade-0:#D6C27A; --anatomy-shade-1:#DEC986; --anatomy-shade-2:#E5D292; --anatomy-shade-3:#EBDA9E; --anatomy-lo:#C2AC5E; --anatomy-mid:#A08A3E; --anatomy-hi:#76652A; }
+.illo .m-quarry { --anatomy-paper:#C4A07C; --anatomy-top:#DDBF9E; --anatomy-shade-0:#A57E58; --anatomy-shade-1:#AF8962; --anatomy-shade-2:#B9946D; --anatomy-shade-3:#C29E78; --anatomy-lo:#916C47; --anatomy-mid:#765536; --anatomy-hi:#563C24; }
+.illo .m-tyre   { --anatomy-paper:#3E434B; --anatomy-top:#555B64; --anatomy-shade-0:#2A2E34; --anatomy-shade-1:#31353C; --anatomy-shade-2:#383D44; --anatomy-shade-3:#40454D; --anatomy-lo:#22262B; --anatomy-mid:#1A1D21; --anatomy-hi:#111315; }
+.illo .m-gold   { --anatomy-paper:#E7BC45; --anatomy-top:#F6DE8E; --anatomy-shade-0:#C8961C; --anatomy-shade-1:#D3A229; --anatomy-shade-2:#DCAE37; --anatomy-shade-3:#E3B844; --anatomy-lo:#A97C10; --anatomy-mid:#8C650A; --anatomy-hi:#694B06; }
+.illo .m-cash   { --anatomy-paper:#8FD1A9; --anatomy-top:#BDE8CF; --anatomy-shade-0:#64B585; --anatomy-shade-1:#6FBE8F; --anatomy-shade-2:#7BC69A; --anatomy-shade-3:#87CDA4; --anatomy-lo:#4A9B6B; --anatomy-mid:#357D53; --anatomy-hi:#215C3A; }
+.illo .m-ledger { --anatomy-paper:#9C83DB; --anatomy-top:#C3B2EE; --anatomy-shade-0:#7A5FC4; --anatomy-shade-1:#856ACB; --anatomy-shade-2:#9076D2; --anatomy-shade-3:#9B82D8; --anatomy-lo:#6A4FB4; --anatomy-mid:#563D9A; --anatomy-hi:#3F2A77; }
+.illo .m-paper  { --anatomy-paper:#FFFFFF; --anatomy-top:#FFFFFF; --anatomy-shade-0:#ECE8E2; --anatomy-shade-1:#F1EEE9; --anatomy-shade-2:#F5F3EF; --anatomy-shade-3:#FAF8F5; --anatomy-lo:#D6CFC4; --anatomy-faint:#D9D2C8; }
+.illo .m-screen { --anatomy-paper:#4DD49A; --anatomy-top:#7BE5B6; --anatomy-shade-0:#2FB57B; --anatomy-shade-1:#37BE84; --anatomy-shade-2:#40C68C; --anatomy-shade-3:#48CD94; --anatomy-lo:#1F9563; }
+.illo .m-glass  { --anatomy-hi:#E8F1FF; }
+.illo .m-lamp   { --anatomy-mid:#FFE08A; }
+.illo .m-ok     { --anatomy-mid:#E5484D; }
+.illo .m-ink    { --anatomy-mid:#7A6852; }
+
+/* ---- Motion (calm, eased, looping) ---- */
+@keyframes illo-ram { 0%, 30% { transform: translate(0, 0); } 45%, 55% { transform: translate(var(--dx), var(--dy)); } 70%, 100% { transform: translate(0, 0); } }
+@keyframes illo-belt { 0% { transform: translate(calc(var(--dx) * -1), calc(var(--dy) * -1)); opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)); opacity: 0; } }
+@keyframes illo-layer-0 { 0%, 6% { transform: translate(var(--dx), var(--dy)); opacity: 0; } 14%, 90% { transform: translate(0, 0); opacity: 1; } 100% { transform: translate(0, 0); opacity: 0; } }
+@keyframes illo-layer-1 { 0%, 18% { transform: translate(var(--dx), var(--dy)); opacity: 0; } 26%, 90% { transform: translate(0, 0); opacity: 1; } 100% { transform: translate(0, 0); opacity: 0; } }
+@keyframes illo-layer-2 { 0%, 30% { transform: translate(var(--dx), var(--dy)); opacity: 0; } 38%, 90% { transform: translate(0, 0); opacity: 1; } 100% { transform: translate(0, 0); opacity: 0; } }
+@keyframes illo-layer-3 { 0%, 42% { transform: translate(var(--dx), var(--dy)); opacity: 0; } 50%, 90% { transform: translate(0, 0); opacity: 1; } 100% { transform: translate(0, 0); opacity: 0; } }
+@keyframes illo-layer-4 { 0%, 54% { transform: translate(var(--dx), var(--dy)); opacity: 0; } 62%, 90% { transform: translate(0, 0); opacity: 1; } 100% { transform: translate(0, 0); opacity: 0; } }
+@keyframes illo-lift { 0%, 25% { transform: translate(0, 0); } 45%, 60% { transform: translate(var(--dx), var(--dy)); } 80%, 100% { transform: translate(0, 0); } }
+@keyframes illo-truck { 0%, 100% { transform: translate(calc(var(--dx) * -1), calc(var(--dy) * -1)); } 50% { transform: translate(var(--dx), calc(var(--dy) - 1px)); } }
+@keyframes illo-road { to { stroke-dashoffset: -24; } }
+@keyframes illo-coin { 0% { transform: translate(var(--dx), var(--dy)); opacity: 0; } 15% { opacity: 1; } 45% { transform: translate(0, 0); } 52% { transform: translate(0, -2px); } 58%, 85% { transform: translate(0, 0); opacity: 1; } 100% { transform: translate(0, 0); opacity: 0; } }
+
+.illo .anim-ram   { animation: illo-ram 3.2s cubic-bezier(.32,.72,0,1) infinite; }
+.illo .anim-belt  { animation: illo-belt 3.2s linear infinite; }
+.illo .anim-stack .anim-layer:nth-child(1) { animation: illo-layer-0 7.5s cubic-bezier(.22,1,.36,1) infinite both; }
+.illo .anim-stack .anim-layer:nth-child(2) { animation: illo-layer-1 7.5s cubic-bezier(.22,1,.36,1) infinite both; }
+.illo .anim-stack .anim-layer:nth-child(3) { animation: illo-layer-2 7.5s cubic-bezier(.22,1,.36,1) infinite both; }
+.illo .anim-stack .anim-layer:nth-child(4) { animation: illo-layer-3 7.5s cubic-bezier(.22,1,.36,1) infinite both; }
+.illo .anim-stack .anim-layer:nth-child(5) { animation: illo-layer-4 7.5s cubic-bezier(.22,1,.36,1) infinite both; }
+.illo .anim-lift  { animation: illo-lift 4.2s cubic-bezier(.32,.72,0,1) infinite; }
+.illo .anim-truck { animation: illo-truck 6s ease-in-out infinite; }
+.illo .anim-road path { animation: illo-road 1.2s linear infinite; }
+.illo .anim-coin  { animation: illo-coin 3.6s cubic-bezier(.32,.72,0,1) infinite; }
+
+/* Only animate when visible (set by the component) */
+.illo[data-paused] [class*='anim-'], .illo[data-paused] .anim-stack .anim-layer, .illo[data-paused] .anim-road path { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .illo [class*='anim-'], .illo .anim-stack .anim-layer, .illo .anim-road path { animation: none !important; opacity: 1 !important; transform: none !important; }
+}

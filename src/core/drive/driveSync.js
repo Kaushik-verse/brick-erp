@@ -1,261 +1,137 @@
 import { db } from '../db/schema';
 import { Preferences } from '@capacitor/preferences';
+import { exportDatabaseSnapshot, parseSnapshotText } from '../backup/snapshot';
+import { toLocalISOString } from '../utils/format';
+import { DRIVE_FILE_PREFIX, DRIVE_RESTORE_PREFIXES } from '../appVariant';
 
 /**
  * driveSync.js
  * -------------
- * Google Drive backup/restore using the hidden `appDataFolder` scope.
- * appDataFolder is invisible in the user's normal Drive UI — it's a
- * private sandboxed space per-app, which is exactly right for a
- * financial ledger backup file the owner shouldn't accidentally delete
- * by browsing Drive.
+ * Google Drive backup/restore using the hidden `appDataFolder` scope —
+ * a private per-app space in the owner's own Google account. Free, no
+ * server needed, and invisible in the normal Drive UI so it can't be
+ * deleted by accident.
  *
- * AUTH NOTE: This module expects an OAuth 2.0 access token with the
- * scope `https://www.googleapis.com/auth/drive.appdata` to already be
- * available (obtained via Capacitor Google Auth plugin or a custom
- * native OAuth flow — not implemented here, since token acquisition is
- * platform/credential-specific). Pass the token into each function.
+ * VERSIONED: one file per day (<prefix>_YYYY-MM-DD.json), the last 30 days
+ * are kept, plus one file per month (<prefix>_monthly_YYYY-MM.json) that is
+ * never deleted, so every month since the start stays restorable. A bad day (wrong entries, accidental delete)
+ * can therefore never overwrite every good copy — older days remain
+ * restorable. The legacy single file (brick_erp_backup.json) from older
+ * app versions is still listed and restorable.
  *
- * The whole local-first architecture means Drive sync is OPTIONAL —
- * the app is fully functional offline with zero Drive connectivity.
- * This module is a safety net, not a dependency.
+ * The app stays fully functional offline; Drive is a safety net only.
  */
 
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3';
-const BACKUP_FILENAME = 'brick_erp_backup.json';
+// Each app writes (and prunes) only its own files; Factory Book can also list
+// and restore the classic app's backups. See core/appVariant.js.
+const FILE_PREFIX = DRIVE_FILE_PREFIX;
+const KEEP_DAYS = 30;
 
-/**
- * Serializes the entire local database into a single JSON snapshot.
- */
-export async function exportDatabaseSnapshot() {
-  const [
-    customers,
-    suppliers,
-    rawMaterials,
-    finishedStock,
-    productionLog,
-    salesLog,
-    purchaseLog,
-    expenses,
-    recipes,
-    settings,
-    customerCollections,
-    supplierPayments,
-    units,
-    vehicles,
-    drivers,
-    invoiceSettings,
-  ] = await Promise.all([
-    db.customers.toArray(),
-    db.suppliers.toArray(),
-    db.rawMaterials.toArray(),
-    db.finishedStock.toArray(),
-    db.productionLog.toArray(),
-    db.salesLog.toArray(),
-    db.purchaseLog.toArray(),
-    db.expenses.toArray(),
-    db.recipes.toArray(),
-    db.settings.toArray(),
-    db.customerCollections.toArray(),
-    db.supplierPayments.toArray(),
-    db.units.toArray(),
-    db.vehicles.toArray(),
-    db.drivers.toArray(),
-    db.invoiceSettings.toArray(),
-  ]);
+export { exportDatabaseSnapshot };
 
-  return {
-    schemaVersion: 2,
-    exportedAt: new Date().toISOString(),
-    data: {
-      customers,
-      suppliers,
-      rawMaterials,
-      finishedStock,
-      productionLog,
-      salesLog,
-      purchaseLog,
-      expenses,
-      recipes,
-      settings,
-      customerCollections,
-      supplierPayments,
-      units,
-      vehicles,
-      drivers,
-      invoiceSettings,
-    },
-  };
+export class DriveAuthError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'DriveAuthError';
+  }
 }
 
-/**
- * Restores the database from a previously exported snapshot. This is a
- * destructive full-replace restore — used for disaster recovery
- * (new device / app reinstall), not for merging.
- */
-export async function restoreDatabaseSnapshot(snapshot) {
-  if (!snapshot?.data) throw new Error('Invalid backup file: missing data payload.');
-  const { data } = snapshot;
-
-  await db.transaction(
-    'rw',
-    db.customers,
-    db.suppliers,
-    db.rawMaterials,
-    db.finishedStock,
-    db.productionLog,
-    db.salesLog,
-    db.purchaseLog,
-    db.expenses,
-    db.recipes,
-    db.settings,
-    db.customerCollections,
-    db.supplierPayments,
-    db.units,
-    db.vehicles,
-    db.drivers,
-    db.invoiceSettings,
-    async () => {
-      await Promise.all([
-        db.customers.clear(),
-        db.suppliers.clear(),
-        db.rawMaterials.clear(),
-        db.finishedStock.clear(),
-        db.productionLog.clear(),
-        db.salesLog.clear(),
-        db.purchaseLog.clear(),
-        db.expenses.clear(),
-        db.recipes.clear(),
-        db.settings.clear(),
-        db.customerCollections.clear(),
-        db.supplierPayments.clear(),
-        db.units.clear(),
-        db.vehicles.clear(),
-        db.drivers.clear(),
-        db.invoiceSettings.clear(),
-      ]);
-
-      await Promise.all([
-        data.customers?.length && db.customers.bulkAdd(data.customers),
-        data.suppliers?.length && db.suppliers.bulkAdd(data.suppliers),
-        data.rawMaterials?.length && db.rawMaterials.bulkAdd(data.rawMaterials),
-        data.finishedStock?.length && db.finishedStock.bulkAdd(data.finishedStock),
-        data.productionLog?.length && db.productionLog.bulkAdd(data.productionLog),
-        data.salesLog?.length && db.salesLog.bulkAdd(data.salesLog),
-        data.purchaseLog?.length && db.purchaseLog.bulkAdd(data.purchaseLog),
-        data.expenses?.length && db.expenses.bulkAdd(data.expenses),
-        data.recipes?.length && db.recipes.bulkAdd(data.recipes),
-        data.settings?.length && db.settings.bulkAdd(data.settings),
-        data.customerCollections?.length && db.customerCollections.bulkAdd(data.customerCollections),
-        data.supplierPayments?.length && db.supplierPayments.bulkAdd(data.supplierPayments),
-        data.units?.length && db.units.bulkAdd(data.units),
-        data.vehicles?.length && db.vehicles.bulkAdd(data.vehicles),
-        data.drivers?.length && db.drivers.bulkAdd(data.drivers),
-        data.invoiceSettings?.length && db.invoiceSettings.bulkAdd(data.invoiceSettings),
-      ]);
-    }
-  );
-}
-
-/**
- * Finds the existing backup file ID in appDataFolder, if one exists.
- */
-async function findExistingBackupFileId(accessToken) {
-  const url = `${DRIVE_API_BASE}/files?spaces=appDataFolder&q=name='${BACKUP_FILENAME}'&fields=files(id,modifiedTime)`;
+async function driveFetch(url, accessToken, options = {}) {
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+    ...options,
+    headers: { Authorization: `Bearer ${accessToken}`, ...(options.headers || {}) },
   });
-  if (!res.ok) throw new Error(`Drive lookup failed: ${res.status}`);
+  if (res.status === 401 || res.status === 403) {
+    throw new DriveAuthError('Google sign-in expired. Please connect Google Drive again.');
+  }
+  return res;
+}
+
+/** Newest-first list of every Brick ERP backup in appDataFolder. */
+export async function listDriveBackups(accessToken) {
+  const names = DRIVE_RESTORE_PREFIXES.map((p) => `name contains '${p}'`).join(' or ');
+  const q = encodeURIComponent(`(${names}) and trashed = false`);
+  const url = `${DRIVE_API_BASE}/files?spaces=appDataFolder&q=${q}&orderBy=modifiedTime desc&pageSize=200&fields=files(id,name,modifiedTime,size)`;
+  const res = await driveFetch(url, accessToken);
+  if (!res.ok) throw new Error(`Drive lookup failed (${res.status})`);
   const json = await res.json();
-  return json.files?.[0] || null;
+  return json.files || [];
+}
+
+function dailyFileName(date = new Date()) {
+  return `${FILE_PREFIX}_${toLocalISOString(date)}.json`;
 }
 
 /**
- * Uploads (creates or updates) the backup JSON file into appDataFolder.
+ * Uploads today's backup and this month's permanent copy (each created or
+ * replaced), then prunes daily files older than KEEP_DAYS.
  */
 export async function uploadBackupToDrive(accessToken) {
   const snapshot = await exportDatabaseSnapshot();
+  snapshot.backupKind = 'drive';
   const fileContent = JSON.stringify(snapshot);
-  const existing = await findExistingBackupFileId(accessToken);
+  const name = dailyFileName();
+  const monthName = `${FILE_PREFIX}_monthly_${toLocalISOString(new Date()).slice(0, 7)}.json`;
 
-  const metadata = existing
-    ? { name: BACKUP_FILENAME }
-    : { name: BACKUP_FILENAME, parents: ['appDataFolder'] };
+  const files = await listDriveBackups(accessToken);
+  const result = await upsertFile(accessToken, files, name, fileContent);
+  // This month's permanent copy (never pruned).
+  await upsertFile(accessToken, files, monthName, fileContent).catch(() => {});
 
-  const boundary = 'brick_erp_backup_boundary';
-  const multipartBody =
-    `--${boundary}\r\n` +
-    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-    `${JSON.stringify(metadata)}\r\n` +
-    `--${boundary}\r\n` +
-    'Content-Type: application/json\r\n\r\n' +
-    `${fileContent}\r\n` +
-    `--${boundary}--`;
-
-  const url = existing
-    ? `${DRIVE_UPLOAD_BASE}/files/${existing.id}?uploadType=multipart`
-    : `${DRIVE_UPLOAD_BASE}/files?uploadType=multipart`;
-
-  const res = await fetch(url, {
-    method: existing ? 'PATCH' : 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': `multipart/related; boundary=${boundary}`,
-    },
-    body: multipartBody,
-  });
-
-  if (!res.ok) {
-    const errBody = await res.text();
-    throw new Error(`Drive upload failed: ${res.status} ${errBody}`);
+  // Prune old DAILY files of this app only (never monthly or legacy files).
+  const dated = files.filter((f) => f.name.startsWith(`${FILE_PREFIX}_`) && /_\d{4}-\d{2}-\d{2}\.json$/.test(f.name) && f.name !== name);
+  const stale = dated.slice(KEEP_DAYS - 1);
+  for (const f of stale) {
+    await driveFetch(`${DRIVE_API_BASE}/files/${f.id}`, accessToken, { method: 'DELETE' }).catch(() => {});
   }
 
-  const result = await res.json();
-
+  const now = new Date().toISOString();
   await db.driveSyncMeta.clear();
-  await db.driveSyncMeta.add({
-    lastSyncedAt: new Date().toISOString(),
-    fileId: result.id,
-  });
-  await Preferences.set({ key: 'lastDriveSync', value: new Date().toISOString() });
+  await db.driveSyncMeta.add({ lastSyncedAt: now, fileId: result.id });
+  await Preferences.set({ key: 'lastDriveSync', value: now });
 
   return result;
 }
 
-/**
- * Downloads and restores the backup JSON file from appDataFolder.
- */
-export async function downloadBackupFromDrive(accessToken) {
-  const existing = await findExistingBackupFileId(accessToken);
-  if (!existing) throw new Error('No backup file found in Google Drive appDataFolder.');
-
-  const res = await fetch(`${DRIVE_API_BASE}/files/${existing.id}?alt=media`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+/** Creates the file in appDataFolder, or replaces its content if it exists. */
+async function upsertFile(accessToken, files, name, content) {
+  const existing = files.find((f) => f.name === name);
+  const metadata = existing ? { name } : { name, parents: ['appDataFolder'] };
+  const boundary = `brick_erp_${Date.now()}`;
+  const body =
+    `--${boundary}\r\n` +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    `${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\n` +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    `${content}\r\n` +
+    `--${boundary}--`;
+  const url = existing
+    ? `${DRIVE_UPLOAD_BASE}/files/${existing.id}?uploadType=multipart`
+    : `${DRIVE_UPLOAD_BASE}/files?uploadType=multipart`;
+  const res = await driveFetch(url, accessToken, {
+    method: existing ? 'PATCH' : 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body,
   });
-  if (!res.ok) throw new Error(`Drive download failed: ${res.status}`);
-
-  const snapshot = await res.json();
-  await restoreDatabaseSnapshot(snapshot);
-  return snapshot;
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error(`Drive upload failed: ${res.status} ${errBody.slice(0, 200)}`);
+  }
+  return res.json();
 }
 
-/**
- * Deletes the backup JSON file from Google Drive if it exists.
- */
-export async function deleteBackupFromDrive(accessToken) {
-  const existing = await findExistingBackupFileId(accessToken);
-  if (!existing) return;
-
-  const res = await fetch(`${DRIVE_API_BASE}/files/${existing.id}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) throw new Error(`Drive delete failed: ${res.status}`);
-}
-
-/** Reads the locally cached "last synced" timestamp for UI display. */
-export async function getLastSyncTimestamp() {
-  const { value } = await Preferences.get({ key: 'lastDriveSync' });
-  return value || null;
+/** Downloads and validates a specific Drive backup (newest if no id). */
+export async function downloadDriveBackup(accessToken, fileId) {
+  let id = fileId;
+  if (!id) {
+    const files = await listDriveBackups(accessToken);
+    if (!files.length) throw new Error('No backup found in Google Drive.');
+    id = files[0].id;
+  }
+  const res = await driveFetch(`${DRIVE_API_BASE}/files/${id}?alt=media`, accessToken);
+  if (!res.ok) throw new Error(`Drive download failed (${res.status})`);
+  return parseSnapshotText(await res.text());
 }

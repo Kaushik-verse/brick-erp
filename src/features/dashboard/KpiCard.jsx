@@ -7,7 +7,7 @@ import { formatINR, formatNumber } from '../../core/utils/format';
  * accent color for the value text (ember default, or status colors for
  * receivables/payables emphasis).
  */
-export default function KpiCard({ label, value, isCurrency = true, icon: Icon, tone = 'default', delay = 0 }) {
+export default function KpiCard({ label, value, isCurrency = true, icon: Icon, tone = 'default', delay = 0, hint, onClick }) {
   const toneClasses = {
     default: 'text-clay-50',
     ember: 'text-ember-400',
@@ -16,7 +16,7 @@ export default function KpiCard({ label, value, isCurrency = true, icon: Icon, t
   };
 
   return (
-    <GlassCard padding="p-3.5" className="flex flex-col gap-2">
+    <GlassCard padding="p-3.5" className="flex flex-col gap-2" onClick={onClick}>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -31,6 +31,7 @@ export default function KpiCard({ label, value, isCurrency = true, icon: Icon, t
       <span className={`figure text-xl font-bold ${toneClasses[tone]}`}>
         {isCurrency ? formatINR(value) : formatNumber(value)}
       </span>
+      {hint && <span className="text-[10px] text-clay-500 -mt-1">{hint}</span>}
     </GlassCard>
   );
 }

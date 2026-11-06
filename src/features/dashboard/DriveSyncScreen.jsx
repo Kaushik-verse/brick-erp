@@ -1,270 +1,448 @@
-import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, CloudUpload, CloudDownload, ShieldCheck, Clock, HardDrive, Upload } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { BACKUP_FOLDER, BACKUP_FILE_PREFIX } from '../../core/appVariant';
+import { CloudUpload, CloudDownload, ShieldCheck, ShieldAlert, HardDrive, Upload, Share2, RotateCcw, RefreshCw, LogOut, Smartphone, Info } from 'lucide-react';
 import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
 import GlassButton from '../../core/ui/GlassButton';
+import { exportDatabaseSnapshot, parseSnapshotText, summarizeSnapshot } from '../../core/backup/snapshot';
 import {
-  uploadBackupToDrive,
-  downloadBackupFromDrive,
-  getLastSyncTimestamp,
-  exportDatabaseSnapshot,
-  restoreDatabaseSnapshot,
-} from '../../core/drive/driveSync';
+  listLocalBackups,
+  readLocalBackup,
+  shareLocalBackup,
+  restoreWithSafetyBackup,
+} from '../../core/backup/localBackups';
+import { runBackup, useBackupStatus, markDriveBackupDone } from '../../core/backup/autoBackup';
+import { getDriveToken, isDriveConnected, disconnectDrive, clearDriveToken } from '../../core/drive/googleAuth';
 import { saveAndShareBlob } from '../../core/utils/nativeFileBridge';
 import { useUIStore } from '../../core/store/uiStore';
-import { formatDateDisplay } from '../../core/utils/format';
-import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
+import { formatRelativeTime } from '../../core/utils/format';
 import { Capacitor } from '@capacitor/core';
 
-/**
- * DriveSyncScreen
- * ----------------
- * Two backup strategies:
- * 1. Google Drive appDataFolder (OAuth required)
- * 2. Local JSON file export/import (works always, no auth needed)
- */
+function describeSnapshot(snapshot) {
+  const s = summarizeSnapshot(snapshot);
+  const when = s.exportedAt ? new Date(s.exportedAt).toLocaleString('en-IN') : 'unknown date';
+  return (
+    `Backup from ${when}\n\n` +
+    `• ${s.customers} customers, ${s.suppliers} suppliers\n` +
+    `• ${s.sales} sales, ${s.collections} collections\n` +
+    `• ${s.purchases} purchases, ${s.payments} supplier payments\n` +
+    `• ${s.production} production runs, ${s.expenses} expenses\n` +
+    `• ${s.manualEntries} passbook entries`
+  );
+}
+
+function confirmRestore(snapshot) {
+  return window.confirm(
+    `${describeSnapshot(snapshot)}\n\nThis will REPLACE the data on this phone with this backup.\n` +
+      'A safety copy of your current data is saved first, so this can be undone.\n\nContinue?'
+  );
+}
+
+function fileSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const KIND_LABEL = { auto: 'Daily', monthly: 'Monthly (kept forever)', safety: 'Safety copy', manual: 'Manual', drive: 'Drive' };
+
 export default function DriveSyncScreen({ onBack }) {
   const pushToast = useUIStore((s) => s.pushToast);
-  const [accessToken, setAccessToken] = useState(() => {
-    const cached = localStorage.getItem('gdrive_token');
-    const expiry = localStorage.getItem('gdrive_token_expiry');
-    if (cached && expiry && Date.now() < Number(expiry)) {
-      return cached;
-    }
-    return '';
-  });
-  const [lastSync, setLastSync] = useState(null);
+  const status = useBackupStatus();
   const [busy, setBusy] = useState(false);
+  const [driveConnected, setDriveConnected] = useState(isDriveConnected());
+  const [driveFiles, setDriveFiles] = useState(null);
+  const [localList, setLocalList] = useState(null);
+  const [showAllLocal, setShowAllLocal] = useState(false);
   const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    getLastSyncTimestamp().then(setLastSync);
+  const refreshLocal = useCallback(() => {
+    listLocalBackups()
+      .then(setLocalList)
+      .catch(() => setLocalList([]));
   }, []);
 
-  // ---- Google Drive Flow ----
-  const handleConnect = async () => {
+  useEffect(() => {
+    refreshLocal();
+  }, [refreshLocal, status.lastLocalAt]);
+
+  const withBusy = async (fn) => {
     setBusy(true);
     try {
-      if (!Capacitor.isNativePlatform()) {
-        const loadGsiScript = () => {
-          return new Promise((resolve) => {
-            if (window.google?.accounts?.oauth2) return resolve();
-            const script = document.createElement('script');
-            script.src = 'https://accounts.google.com/gsi/client';
-            script.async = true;
-            script.defer = true;
-            script.onload = resolve;
-            document.body.appendChild(script);
-          });
-        };
-        await loadGsiScript();
-        
-        const token = await new Promise((resolve, reject) => {
-          try {
-            const client = window.google.accounts.oauth2.initTokenClient({
-              client_id: '813773523036-4vo5qijl8uvtdqsd83qb5c7c7j9hth0u.apps.googleusercontent.com',
-              scope: 'https://www.googleapis.com/auth/drive.appdata',
-              callback: (response) => {
-                if (response.error) {
-                  reject(new Error(response.error));
-                } else {
-                  resolve(response.access_token);
-                }
-              },
-            });
-            client.requestAccessToken();
-          } catch (err) {
-            reject(err);
-          }
-        });
-        
-        if (token) {
-          setAccessToken(token);
-          localStorage.setItem('gdrive_token', token);
-          localStorage.setItem('gdrive_token_expiry', Date.now() + 50 * 60 * 1000);
-          pushToast('Connected to Google Drive', 'success');
-        } else {
-          throw new Error('Sign in failed (no token)');
-        }
-      } else {
-        const user = await GoogleAuth.signIn();
-        if (user?.authentication?.accessToken || user?.accessToken) {
-          const t = user.authentication?.accessToken || user.accessToken;
-          setAccessToken(t);
-          localStorage.setItem('gdrive_token', t);
-          localStorage.setItem('gdrive_token_expiry', Date.now() + 50 * 60 * 1000);
-          pushToast('Connected to Google Drive', 'success');
-        } else {
-          throw new Error('Sign in failed (no token)');
-        }
-      }
+      await fn();
     } catch (e) {
       console.error(e);
-      pushToast(e.message || 'Failed to connect to Google', 'error');
+      pushToast(e.message || 'Something went wrong', 'error');
     } finally {
       setBusy(false);
     }
   };
 
-  const handleBackup = async () => {
-    if (!accessToken) {
-      pushToast('Connect Google Drive first', 'error');
-      return;
-    }
-    setBusy(true);
+  const reloadSoon = () => setTimeout(() => window.location.reload(), 1200);
+
+  // ---------- Backup now ----------
+  const handleBackupNow = () =>
+    withBusy(async () => {
+      const res = await runBackup({ force: true });
+      if (res.errors.length) {
+        pushToast(res.errors[0], 'error');
+      } else {
+        pushToast(res.drive ? 'Backed up to phone and Google Drive' : 'Backed up to phone', 'success');
+      }
+      refreshLocal();
+    });
+
+  // ---------- Google Drive ----------
+  const handleConnect = () =>
+    withBusy(async () => {
+      const token = await getDriveToken({ interactive: true });
+      if (!token) throw new Error('Google sign-in failed');
+      setDriveConnected(true);
+      pushToast('Google Drive connected — backing up…', 'success');
+      const { uploadBackupToDrive } = await import('../../core/drive/driveSync');
+      await uploadBackupToDrive(token);
+      markDriveBackupDone();
+      pushToast('First Drive backup complete', 'success');
+    });
+
+  const getTokenOrReconnect = async () => {
     try {
-      await uploadBackupToDrive(accessToken);
-      setLastSync(new Date().toISOString());
-      pushToast('Backup uploaded to Drive', 'success');
+      return await getDriveToken({ interactive: true });
     } catch (e) {
-      pushToast(e.message || 'Backup failed', 'error');
-    } finally {
-      setBusy(false);
+      clearDriveToken();
+      throw e;
     }
   };
 
-  const handleRestore = async () => {
-    if (!accessToken) {
-      pushToast('Connect Google Drive first', 'error');
-      return;
-    }
-    if (!window.confirm('This will REPLACE all local data with the Drive backup. Continue?')) return;
-    setBusy(true);
-    try {
-      await downloadBackupFromDrive(accessToken);
-      pushToast('Database restored from Drive. Reloading...', 'success');
-      setTimeout(() => window.location.reload(), 1500);
-    } catch (e) {
-      pushToast(e.message || 'Restore failed', 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
+  const handleLoadDriveList = () =>
+    withBusy(async () => {
+      const token = await getTokenOrReconnect();
+      const { listDriveBackups } = await import('../../core/drive/driveSync');
+      setDriveFiles(await listDriveBackups(token));
+    });
 
-  // ---- Local JSON Flow ----
-  const handleLocalExport = async () => {
-    setBusy(true);
-    try {
+  const handleDriveRestore = (file) =>
+    withBusy(async () => {
+      const token = await getTokenOrReconnect();
+      const { downloadDriveBackup } = await import('../../core/drive/driveSync');
+      const snapshot = await downloadDriveBackup(token, file.id);
+      if (!confirmRestore(snapshot)) return;
+      await restoreWithSafetyBackup(snapshot);
+      pushToast('Restored from Google Drive. Reloading…', 'success');
+      reloadSoon();
+    });
+
+  const handleDisconnect = () =>
+    withBusy(async () => {
+      if (!window.confirm('Stop automatic Google Drive backups on this phone? Existing Drive backups are kept.')) return;
+      await disconnectDrive();
+      setDriveConnected(false);
+      setDriveFiles(null);
+      pushToast('Google Drive disconnected', 'info');
+    });
+
+  // ---------- On-device restore points ----------
+  const handleLocalRestore = (entry) =>
+    withBusy(async () => {
+      const snapshot = await readLocalBackup(entry);
+      if (!confirmRestore(snapshot)) return;
+      await restoreWithSafetyBackup(snapshot);
+      pushToast('Restored. Reloading…', 'success');
+      reloadSoon();
+    });
+
+  const handleLocalShare = (entry) =>
+    withBusy(async () => {
+      await shareLocalBackup(entry);
+    });
+
+  // ---------- File export / import ----------
+  const handleExportFile = () =>
+    withBusy(async () => {
       const snapshot = await exportDatabaseSnapshot();
-      const jsonString = JSON.stringify(snapshot, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const dateStr = new Date().toISOString().slice(0, 10);
-      await saveAndShareBlob(blob, `BrickERP_Backup_${dateStr}.json`, 'application/json');
-      pushToast('Backup file ready to share/save', 'success');
-    } catch (e) {
-      pushToast(e.message || 'Export failed', 'error');
-    } finally {
-      setBusy(false);
-    }
-  };
+      snapshot.backupKind = 'manual';
+      const blob = new Blob([JSON.stringify(snapshot)], { type: 'application/json' });
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+      await saveAndShareBlob(blob, `${BACKUP_FILE_PREFIX}_Backup_${stamp}.json`, 'application/json');
+      pushToast('Backup file ready — save it to Drive/WhatsApp/PC', 'success');
+    });
 
-  const handleLocalImportClick = () => {
+  const handleImportClick = () => {
     if (fileInputRef.current) {
       fileInputRef.current.value = null;
       fileInputRef.current.click();
     }
   };
 
-  const handleLocalImportFile = async (e) => {
+  const handleImportFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!window.confirm('This will REPLACE all local data with the backup file. Continue?')) return;
-    setBusy(true);
-    try {
-      const text = await file.text();
-      const snapshot = JSON.parse(text);
-      if (!snapshot?.data) throw new Error('Invalid backup file: missing data payload.');
-      await restoreDatabaseSnapshot(snapshot);
-      pushToast('Database restored from file. Reloading...', 'success');
-      setTimeout(() => window.location.reload(), 1500);
-    } catch (e) {
-      pushToast(e.message || 'Import failed. Check file format.', 'error');
-    } finally {
-      setBusy(false);
-    }
+    withBusy(async () => {
+      const snapshot = parseSnapshotText(await file.text());
+      if (!confirmRestore(snapshot)) return;
+      await restoreWithSafetyBackup(snapshot);
+      pushToast('Restored from file. Reloading…', 'success');
+      reloadSoon();
+    });
   };
 
+  const healthy = !!status.lastLocalAt && !status.lastError;
+  const localShown = showAllLocal ? localList || [] : (localList || []).slice(0, 5);
+
   return (
-    <div className="pb-32">
+    <div className="pb-32 md:pb-12 md:pt-6">
       <ScreenHeader
-        eyebrow="Disaster Recovery"
+        eyebrow="Data Safety"
         title="Backup & Restore"
-        action={
-          <button onClick={onBack} className="w-10 h-10 rounded-full glass-surface-light flex items-center justify-center touch-manipulation">
-            <ArrowLeft size={18} className="text-clay-300" />
-          </button>
-        }
+        onBack={onBack}
       />
 
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        style={{ display: 'none' }} 
-        accept=".json"
-        onChange={handleLocalImportFile}
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        accept=".json,application/json"
+        onChange={handleImportFile}
       />
 
-      <div className="px-5 space-y-4">
-        {/* Local Backup Section */}
-        <GlassCard padding="p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <HardDrive size={16} className="text-ember-400" />
-            <h3 className="text-sm font-semibold text-clay-100">Local Backup (Recommended)</h3>
+      <div className="px-5 md:px-8 space-y-4 max-w-3xl mx-auto">
+        {/* Status */}
+        <GlassCard
+          padding="p-4"
+          className={healthy ? 'border-ledger-paid/30' : 'border-ledger-partial/40'}
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+                healthy ? 'bg-ledger-paid/15' : 'bg-ledger-partial/15'
+              }`}
+            >
+              {healthy ? (
+                <ShieldCheck size={22} className="text-ledger-paid" />
+              ) : (
+                <ShieldAlert size={22} className="text-ledger-partial" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-clay-50">
+                {healthy ? 'Your data is being backed up' : 'Backup needs attention'}
+              </p>
+              <p className="text-xs text-clay-400 mt-0.5 leading-relaxed">
+                Automatic backups run a minute after every change and whenever the app is closed.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-clay-400 leading-relaxed mb-3">
-            Export your entire database as a JSON file. Share it via WhatsApp, save to Files, or email it to yourself. Works offline, no Google account needed.
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <GlassButton onClick={handleLocalExport} disabled={busy} icon={CloudUpload} fullWidth>
-              Export Backup
-            </GlassButton>
-            <GlassButton onClick={handleLocalImportClick} disabled={busy} icon={Upload} variant="glass" fullWidth>
-              Import Backup
-            </GlassButton>
+
+          <div className="grid grid-cols-2 gap-2 mt-4">
+            <StatusTile
+              icon={Smartphone}
+              label="Phone backup"
+              value={status.lastLocalAt ? formatRelativeTime(status.lastLocalAt) : 'Not yet'}
+              ok={!!status.lastLocalAt}
+            />
+            <StatusTile
+              icon={CloudUpload}
+              label="Google Drive"
+              value={
+                !driveConnected
+                  ? 'Not connected'
+                  : status.lastDriveAt
+                  ? formatRelativeTime(status.lastDriveAt)
+                  : 'Pending'
+              }
+              ok={driveConnected && !!status.lastDriveAt}
+            />
           </div>
+
+          {status.lastError && (
+            <p className="text-xs text-ledger-partial mt-3 leading-relaxed">{status.lastError}</p>
+          )}
+
+          <GlassButton
+            onClick={handleBackupNow}
+            disabled={busy || status.running}
+            icon={RefreshCw}
+            fullWidth
+            className="mt-4"
+          >
+            {status.running ? 'Backing up…' : 'Back Up Now'}
+          </GlassButton>
         </GlassCard>
 
-        {/* Google Drive Section */}
+        {/* Google Drive */}
         <GlassCard padding="p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <ShieldCheck size={16} className="text-ledger-paid" />
-            <h3 className="text-sm font-semibold text-clay-100">Google Drive Backup</h3>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <CloudUpload size={16} className="text-ledger-credit" />
+              <h3 className="text-sm font-semibold text-clay-100">Google Drive (off-phone copy)</h3>
+            </div>
+            {driveConnected && (
+              <button
+                onClick={handleDisconnect}
+                disabled={busy}
+                className="text-[11px] text-clay-400 flex items-center gap-1 touch-manipulation"
+              >
+                <LogOut size={12} /> Disconnect
+              </button>
+            )}
           </div>
           <p className="text-xs text-clay-400 leading-relaxed mb-3">
-            Backups are stored in Google Drive's hidden appDataFolder — invisible in your normal
-            Drive, accessible only by this app.
+            Free and private: backups go to a hidden folder in your own Google account. The last 30
+            days and one copy of every month (kept forever) are saved, so even if wrong entries are
+            made you can go back to an older day or month. If the phone is lost or broken, install
+            the app on a new phone and restore from here.
           </p>
 
-          <GlassCard padding="p-3 flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Clock size={15} className="text-clay-400" />
-              <span className="text-sm text-clay-300">Last synced</span>
-            </div>
-            <span className="text-sm font-semibold text-clay-100">
-              {lastSync ? formatDateDisplay(lastSync) : 'Never'}
-            </span>
-          </GlassCard>
-
-          {!accessToken ? (
-            <GlassButton onClick={handleConnect} disabled={busy} fullWidth>
-              Connect to Google Drive
+          {!driveConnected ? (
+            <GlassButton onClick={handleConnect} disabled={busy} fullWidth icon={CloudUpload}>
+              Connect Google Drive
             </GlassButton>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <GlassButton onClick={handleBackup} disabled={busy} icon={CloudUpload} fullWidth>
-                Backup Now
-              </GlassButton>
-              <GlassButton onClick={handleRestore} disabled={busy} icon={CloudDownload} variant="glass" fullWidth>
-                Restore
-              </GlassButton>
+            <GlassButton onClick={handleLoadDriveList} disabled={busy} variant="glass" icon={CloudDownload} fullWidth>
+              {driveFiles ? 'Refresh Drive Backups' : 'Show Drive Backups'}
+            </GlassButton>
+          )}
+
+          {driveFiles && (
+            <div className="mt-3 space-y-2">
+              {driveFiles.length === 0 && (
+                <p className="text-xs text-clay-500 text-center py-2">No Drive backups yet.</p>
+              )}
+              {driveFiles.slice(0, 10).map((f) => (
+                <BackupRow
+                  key={f.id}
+                  title={new Date(f.modifiedTime).toLocaleString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                  subtitle={`${f.name.includes('_20') ? 'Daily backup' : 'Old-format backup'} · ${fileSize(Number(f.size))}`}
+                  onRestore={() => handleDriveRestore(f)}
+                  disabled={busy}
+                />
+              ))}
             </div>
           )}
         </GlassCard>
 
-        <p className="text-[11px] text-clay-500 text-center px-4 leading-relaxed">
-          Restore replaces all local data with the backup. Use only for new-device setup or
-          disaster recovery.
-        </p>
+        {/* On-device restore points */}
+        <GlassCard padding="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <HardDrive size={16} className="text-ember-400" />
+            <h3 className="text-sm font-semibold text-clay-100">Backups on this phone</h3>
+          </div>
+          <p className="text-xs text-clay-400 leading-relaxed mb-3">
+            {Capacitor.isNativePlatform()
+              ? `Saved in the phone’s Documents/${BACKUP_FOLDER} folder — they stay even if the app is uninstalled. One per day for the last 30 days, one per month kept forever, plus safety copies taken before every restore. Every backup holds all your data from the very first entry.`
+              : 'Restore points kept in this browser. Use “Export file” or Google Drive for a copy outside this computer.'}
+          </p>
+          <div className="space-y-2">
+            {localList === null && <p className="text-xs text-clay-500 text-center py-2">Loading…</p>}
+            {localList?.length === 0 && (
+              <p className="text-xs text-clay-500 text-center py-2">No backups yet — tap “Back Up Now”.</p>
+            )}
+            {localShown.map((b) => (
+              <BackupRow
+                key={b.id}
+                title={
+                  b.createdAt
+                    ? new Date(b.createdAt).toLocaleString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : b.name
+                }
+                subtitle={`${KIND_LABEL[b.kind] || 'Backup'} · ${fileSize(b.size)}${
+                  b.location === 'App storage' ? ' · app storage' : ''
+                }`}
+                onRestore={() => handleLocalRestore(b)}
+                onShare={() => handleLocalShare(b)}
+                disabled={busy}
+              />
+            ))}
+            {(localList?.length || 0) > 5 && (
+              <button
+                onClick={() => setShowAllLocal((v) => !v)}
+                className="w-full text-xs font-semibold text-ember-400 py-2 touch-manipulation"
+              >
+                {showAllLocal ? 'Show fewer' : `Show all ${localList.length}`}
+              </button>
+            )}
+          </div>
+        </GlassCard>
+
+        {/* File export/import */}
+        <GlassCard padding="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Share2 size={16} className="text-ember-400" />
+            <h3 className="text-sm font-semibold text-clay-100">Backup file</h3>
+          </div>
+          <p className="text-xs text-clay-400 leading-relaxed mb-3">
+            Send a full backup to yourself on WhatsApp, email or a PC — or restore one you saved earlier.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <GlassButton onClick={handleExportFile} disabled={busy} icon={Share2} fullWidth size="sm">
+              Export file
+            </GlassButton>
+            <GlassButton onClick={handleImportClick} disabled={busy} icon={Upload} variant="glass" fullWidth size="sm">
+              Restore file
+            </GlassButton>
+          </div>
+        </GlassCard>
+
+        <div className="flex gap-2 px-1">
+          <Info size={14} className="text-clay-500 shrink-0 mt-0.5" />
+          <p className="text-[11px] text-clay-500 leading-relaxed">
+            When updating the app, install the new version on top of the old one — do not uninstall
+            first. Every restore saves a safety copy of the current data first, so it can be undone.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusTile({ icon: Icon, label, value, ok }) {
+  return (
+    <div className="glass-surface-light rounded-xl p-3">
+      <div className="flex items-center gap-1.5 mb-1">
+        <Icon size={12} className={ok ? 'text-ledger-paid' : 'text-clay-500'} />
+        <span className="text-[10px] uppercase tracking-wide text-clay-400">{label}</span>
+      </div>
+      <p className={`text-sm font-semibold ${ok ? 'text-clay-50' : 'text-clay-400'}`}>{value}</p>
+    </div>
+  );
+}
+
+function BackupRow({ title, subtitle, onRestore, onShare, disabled }) {
+  return (
+    <div className="glass-surface-light rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-clay-100 truncate">{title}</p>
+        <p className="text-[11px] text-clay-500 truncate">{subtitle}</p>
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        {onShare && (
+          <button
+            onClick={onShare}
+            disabled={disabled}
+            aria-label="Share backup"
+            className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center touch-manipulation disabled:opacity-40"
+          >
+            <Share2 size={14} className="text-clay-300" />
+          </button>
+        )}
+        <button
+          onClick={onRestore}
+          disabled={disabled}
+          className="h-9 px-3 rounded-full bg-ember-500/15 text-ember-400 text-xs font-semibold flex items-center gap-1 touch-manipulation disabled:opacity-40"
+        >
+          <RotateCcw size={12} /> Restore
+        </button>
       </div>
     </div>
   );

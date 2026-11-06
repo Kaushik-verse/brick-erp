@@ -1,0 +1,48 @@
+// Factory Book launcher icon — original clay-style art (Kubai-style layering:
+// back/front pieces, soft coloured shadow, top inner light). 108×108 canvas,
+// artwork kept inside Android's 66dp safe zone.
+export const defs = `
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF6EC"/><stop offset="1" stop-color="#F3E1CC"/></linearGradient>
+  <radialGradient id="glow" cx=".5" cy=".38" r=".55"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".9"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+  <linearGradient id="cover" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EE8457"/><stop offset=".55" stop-color="#DB6233"/><stop offset="1" stop-color="#C24F24"/></linearGradient>
+  <linearGradient id="spine" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#A9421C"/><stop offset="1" stop-color="#C2522A"/></linearGradient>
+  <linearGradient id="pages" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFF8EE"/><stop offset="1" stop-color="#EBD9C2"/></linearGradient>
+  <linearGradient id="brick" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF5E8"/><stop offset="1" stop-color="#F2D6B8"/></linearGradient>
+  <linearGradient id="ribbon" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F7C24B"/><stop offset="1" stop-color="#E09A1B"/></linearGradient>
+  <filter id="sh" x="-30%" y="-30%" width="160%" height="170%" color-interpolation-filters="sRGB">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dy="3.5" result="o"/>
+    <feColorMatrix in="o" type="matrix" values="0 0 0 0 0.55 0 0 0 0 0.24 0 0 0 0 0.1 0 0 0 0.32 0"/>
+    <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="hi" x="-10%" y="-10%" width="120%" height="130%" color-interpolation-filters="sRGB">
+    <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="a"/>
+    <feOffset in="a" dy="1.6"/><feGaussianBlur stdDeviation=".8"/>
+    <feComposite in2="a" operator="arithmetic" k2="-1" k3="1"/>
+    <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0"/>
+    <feBlend in2="SourceGraphic" mode="overlay"/>
+  </filter>
+</defs>`;
+
+// Brick for the cover emblem: front face + lighter top strip, with outline.
+const brick = (x, y, w = 14, h = 7.6) => `
+  <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.8" fill="url(#brick)" stroke="#8E3415" stroke-opacity=".55" stroke-width="1.1"/>
+  <rect x="${x + 1.2}" y="${y + 1}" width="${w - 2.4}" height="1.6" rx=".8" fill="#FFFFFF" opacity=".7"/>`;
+
+export const art = `
+<g filter="url(#sh)">
+  <!-- pages block (back piece) -->
+  <rect x="33" y="27.5" width="47" height="54" rx="6" fill="url(#pages)" stroke="#B8643B" stroke-opacity=".55" stroke-width="1.2"/>
+  <path d="M77.4 33V77M74.6 31.6V78.6" stroke="#D9C2A6" stroke-width="1.1"/>
+  <!-- cover (front piece) -->
+  <g filter="url(#hi)"><rect x="27" y="24" width="47" height="54" rx="7" fill="url(#cover)"/></g>
+  <rect x="27" y="24" width="47" height="54" rx="7" fill="none" stroke="#9E3E18" stroke-width="1.3"/>
+  <path d="M27 31a7 7 0 0 1 7-7h2.4v54H34a7 7 0 0 1-7-7z" fill="url(#spine)"/>
+  <!-- bookmark ribbon -->
+  <path d="M60 22.5h7v18l-3.5-3-3.5 3z" fill="url(#ribbon)" stroke="#B9770C" stroke-width="1"/>
+  <!-- brick stack emblem on the cover -->
+  ${brick(43, 54)}${brick(57.4, 54)}${brick(50.2, 45.6)}
+  <path d="M43 66.4H71.4" stroke="#FFFFFF" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round"/>
+</g>`;
+
+export const background = `<rect width="108" height="108" fill="url(#bg)"/><circle cx="54" cy="44" r="46" fill="url(#glow)"/>`;

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, FileText, FileSpreadsheet, MessageCircle, Calendar } from 'lucide-react';
+import { FileText, FileSpreadsheet, MessageCircle, Calendar } from 'lucide-react';
 import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
 import GlassButton from '../../core/ui/GlassButton';
@@ -46,11 +46,7 @@ export default function DocumentHubScreen({ onBack }) {
       <ScreenHeader
         eyebrow="Reports"
         title="Document Hub"
-        action={
-          <button onClick={onBack} className="w-10 h-10 rounded-full glass-surface-light flex items-center justify-center touch-manipulation">
-            <ArrowLeft size={18} className="text-clay-300" />
-          </button>
-        }
+        onBack={onBack}
       />
 
       <div className="px-5 space-y-4">

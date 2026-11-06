@@ -8,35 +8,45 @@ export default {
         // KILN — the deep furnace-charcoal base. Not generic slate/zinc; warmed slightly
         // toward brown to read as "fired clay" rather than "tech dashboard."
         kiln: {
-          950: '#0E0B08',
-          900: '#15110D',
-          800: '#1D1712',
-          700: '#28201A',
-          600: '#372C23',
-          500: '#4A3B2F',
+          950: 'rgb(var(--c-kiln-950) / <alpha-value>)',
+          900: 'rgb(var(--c-kiln-900) / <alpha-value>)',
+          800: 'rgb(var(--c-kiln-800) / <alpha-value>)',
+          700: 'rgb(var(--c-kiln-700) / <alpha-value>)',
+          600: 'rgb(var(--c-kiln-600) / <alpha-value>)',
+          500: 'rgb(var(--c-kiln-500) / <alpha-value>)',
         },
         // EMBER — the signature accent. A muted brick-ember orange-red, never neon.
         ember: {
-          400: '#FF8B5E',
-          500: '#F2703D',
-          600: '#D9572A',
-          700: '#B3441F',
-          glow: '#FF7A45',
+          400: 'rgb(var(--c-ember-400) / <alpha-value>)',
+          500: 'rgb(var(--c-ember-500) / <alpha-value>)',
+          600: 'rgb(var(--c-ember-600) / <alpha-value>)',
+          700: 'rgb(var(--c-ember-700) / <alpha-value>)',
+          glow: 'rgb(var(--c-ember-glow) / <alpha-value>)',
         },
         // CLAY — secondary warm neutral for cards/text-on-dark
         clay: {
-          50: '#FBF7F2',
-          100: '#F2E9DD',
-          200: '#E3D3BE',
-          300: '#C9AD8C',
-          400: '#A88B68',
+          50: 'rgb(var(--c-clay-50) / <alpha-value>)',
+          100: 'rgb(var(--c-clay-100) / <alpha-value>)',
+          200: 'rgb(var(--c-clay-200) / <alpha-value>)',
+          300: 'rgb(var(--c-clay-300) / <alpha-value>)',
+          400: 'rgb(var(--c-clay-400) / <alpha-value>)',
+          // Darker clay shades were referenced across the app but never
+          // defined, so `text-clay-500` etc. silently rendered nothing.
+          500: 'rgb(var(--c-clay-500) / <alpha-value>)',
+          600: 'rgb(var(--c-clay-600) / <alpha-value>)',
+          700: 'rgb(var(--c-clay-700) / <alpha-value>)',
+          800: 'rgb(var(--c-clay-800) / <alpha-value>)',
+        },
+        glass: {
+          panel: 'var(--glass-panel)',
+          border: 'var(--glass-border)',
         },
         // LEDGER — status colors, desaturated to stay premium not candy-bright
         ledger: {
-          paid: '#5FAE7E',
-          partial: '#E0A23B',
-          overdue: '#D9534F',
-          credit: '#7C8FB0',
+          paid: 'rgb(var(--c-ledger-paid) / <alpha-value>)',
+          partial: 'rgb(var(--c-ledger-partial) / <alpha-value>)',
+          overdue: 'rgb(var(--c-ledger-overdue) / <alpha-value>)',
+          credit: 'rgb(var(--c-ledger-credit) / <alpha-value>)',
         },
       },
       fontFamily: {

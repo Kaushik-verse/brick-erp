@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Save, Factory } from 'lucide-react';
+import { Save, Factory } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
@@ -7,6 +7,7 @@ import GlassButton from '../../core/ui/GlassButton';
 import { GlassInput } from '../../core/ui/GlassFormControls';
 import { db } from '../../core/db/schema';
 import { useUIStore } from '../../core/store/uiStore';
+import { defaultLabourPerBrick } from '../../core/db/recipeEngine';
 
 export default function RecipeSettingsScreen({ onBack }) {
   const pushToast = useUIStore((s) => s.pushToast);
@@ -17,6 +18,7 @@ export default function RecipeSettingsScreen({ onBack }) {
 
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({});
+  const [labour, setLabour] = useState({});
 
   useEffect(() => {
     if (!recipes || !products || !materials) return;
@@ -44,6 +46,13 @@ export default function RecipeSettingsScreen({ onBack }) {
       }
     }
     setFormData(initial);
+    const lab = {};
+    for (const p of products) {
+      const existing = recipes.find((r) => r.brickSize === p.brickSize);
+      const v = existing?.labourPerBrick;
+      lab[p.brickSize] = String(v !== undefined && v !== null && v !== '' ? v : defaultLabourPerBrick(p.brickSize));
+    }
+    setLabour(lab);
   }, [recipes, products, materials]);
 
   const handleSave = async () => {
@@ -53,6 +62,7 @@ export default function RecipeSettingsScreen({ onBack }) {
         const recipeObj = {
           brickSize,
           materials: {},
+          labourPerBrick: Math.max(0, Number(labour[brickSize]) || 0),
         };
         for (const [matId, qty] of Object.entries(mats)) {
           recipeObj.materials[matId] = Number(qty) || 0;
@@ -89,17 +99,13 @@ export default function RecipeSettingsScreen({ onBack }) {
       <ScreenHeader
         eyebrow="Configuration"
         title="Recipe Management"
-        action={
-          <button onClick={onBack} className="w-10 h-10 rounded-full glass-surface-light flex items-center justify-center touch-manipulation">
-            <ArrowLeft size={18} className="text-clay-300" />
-          </button>
-        }
+        onBack={onBack}
       />
 
       <div className="px-5 space-y-4">
         <div className="glass-surface-light rounded-2xl p-4 border border-ember-500/20">
           <p className="text-sm text-clay-200">
-            Define the exact raw materials required to produce exactly <strong className="text-ember-400">1 Brick</strong> of each size.
+            Define the exact raw materials required to produce exactly <strong className="text-ember-400">1 Brick</strong> of each size, and the labour cost paid per brick. Changes apply to new production entries only.
           </p>
         </div>
 
@@ -121,6 +127,15 @@ export default function RecipeSettingsScreen({ onBack }) {
                 />
               ))}
             </div>
+            <GlassInput
+              label="Labour cost per brick (₹)"
+              type="number"
+              inputMode="decimal"
+              step="any"
+              prefix="₹"
+              value={labour[p.brickSize] ?? ''}
+              onChange={(e) => setLabour((prev) => ({ ...prev, [p.brickSize]: e.target.value }))}
+            />
             {formData[p.brickSize] && (
                <div className="pt-2 text-right">
                   <p className="text-xs text-clay-400">Total Weight: <span className="text-clay-100 font-semibold">{Object.values(formData[p.brickSize]).reduce((a,b) => a + (Number(b)||0), 0).toFixed(2)} units</span></p>

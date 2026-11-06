@@ -252,6 +252,11 @@ export class BrickERPDatabase extends Dexie {
       });
     });
 
+    this.version(14).stores({
+      // Manual stock corrections (opening stock, breakage, physical count)
+      stockAdjustments: '++id, date, itemType, itemId, createdAt',
+    });
+
     this.customers = this.table('customers');
     this.suppliers = this.table('suppliers');
     this.rawMaterials = this.table('rawMaterials');
@@ -271,10 +276,71 @@ export class BrickERPDatabase extends Dexie {
     this.units = this.table('units');
     this.vehicles = this.table('vehicles');
     this.drivers = this.table('drivers');
+    this.stockAdjustments = this.table('stockAdjustments');
   }
 }
 
 export const db = new BrickERPDatabase();
+
+// ---------------------------------------------------------------------------
+// Change tracking — lets the auto-backup scheduler know when data changed.
+// The timestamp is persisted so a change made right before the app was
+// killed is still backed up on the next launch.
+// ---------------------------------------------------------------------------
+const LAST_CHANGE_KEY = 'brickerp_last_change';
+const changeListeners = new Set();
+let lastChangeAt = (() => {
+  try {
+    return Number(localStorage.getItem(LAST_CHANGE_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+})();
+let notifyQueued = false;
+
+export function markDataChanged() {
+  lastChangeAt = Date.now();
+  if (notifyQueued) return;
+  notifyQueued = true;
+  // Batch many row-level hooks from one transaction into a single notification.
+  setTimeout(() => {
+    notifyQueued = false;
+    try {
+      localStorage.setItem(LAST_CHANGE_KEY, String(lastChangeAt));
+    } catch {
+      /* ignore */
+    }
+    changeListeners.forEach((fn) => {
+      try {
+        fn();
+      } catch {
+        /* ignore */
+      }
+    });
+  }, 0);
+}
+
+export function getLastChangeAt() {
+  return lastChangeAt;
+}
+
+export function onDataChanged(fn) {
+  changeListeners.add(fn);
+  return () => changeListeners.delete(fn);
+}
+
+for (const table of db.tables) {
+  if (table.name === 'driveSyncMeta') continue;
+  table.hook('creating', () => {
+    markDataChanged();
+  });
+  table.hook('updating', () => {
+    markDataChanged();
+  });
+  table.hook('deleting', () => {
+    markDataChanged();
+  });
+}
 
 let seedPromise = null;
 

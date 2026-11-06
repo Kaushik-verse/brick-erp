@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Banknote, Landmark, Upload } from 'lucide-react';
+import { Banknote, Landmark, Smartphone, Upload } from 'lucide-react';
 import BottomSheet from '../../core/ui/BottomSheet';
 import GlassButton from '../../core/ui/GlassButton';
 import { GlassInput, GlassToggleGroup } from '../../core/ui/GlassFormControls';
 import { addSupplierPayment } from '../../core/db/ledgerEngine';
 import { useUIStore } from '../../core/store/uiStore';
-import { todayISO } from '../../core/utils/format';
+import { todayISO, formatINR } from '../../core/utils/format';
 import { hapticTap } from '../../core/utils/nativeFileBridge';
 
 export default function AddSupplierPaymentSheet({ open, onClose, supplierId, supplierName, outstandingBalance }) {
@@ -23,6 +23,11 @@ export default function AddSupplierPaymentSheet({ open, onClose, supplierId, sup
     setError('');
     if (!amtNum || amtNum <= 0) {
       setError('Enter a valid amount.');
+      return;
+    }
+    const due = Number(outstandingBalance) || 0;
+    if (amtNum > due + 0.009 &&
+      !window.confirm(`${formatINR(amtNum)} is more than the balance of ${formatINR(due)}. The extra will be kept as an advance. Continue?`)) {
       return;
     }
     setSubmitting(true);
@@ -45,7 +50,7 @@ export default function AddSupplierPaymentSheet({ open, onClose, supplierId, sup
       <div className="space-y-4">
         <div className="glass-surface-light rounded-2xl p-3.5 flex justify-between items-center mb-4">
           <p className="text-sm text-clay-300">Outstanding</p>
-          <p className="font-bold text-lg text-ledger-overdue">₹{Number(outstandingBalance).toFixed(2)}</p>
+          <p className="figure font-bold text-lg text-ledger-overdue">{formatINR(Number(outstandingBalance) || 0, { decimals: 2 })}</p>
         </div>
 
         <GlassInput
@@ -64,6 +69,15 @@ export default function AddSupplierPaymentSheet({ open, onClose, supplierId, sup
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
         />
+        {Number(outstandingBalance) > 0 && (
+          <button
+            type="button"
+            onClick={() => setAmount(String(Number(outstandingBalance)))}
+            className="-mt-2 w-full h-9 rounded-xl glass-surface-light text-xs font-semibold text-ledger-paid touch-manipulation"
+          >
+            Full balance ({formatINR(Number(outstandingBalance))})
+          </button>
+        )}
 
         <GlassInput
           label="Remarks / Reference (Optional)"
@@ -78,6 +92,7 @@ export default function AddSupplierPaymentSheet({ open, onClose, supplierId, sup
           onChange={setPaymentChannel}
           options={[
             { value: 'cash', label: 'Cash', icon: Banknote },
+            { value: 'upi', label: 'UPI', icon: Smartphone },
             { value: 'bank', label: 'Bank', icon: Landmark },
           ]}
         />

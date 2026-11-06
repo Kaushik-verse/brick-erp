@@ -1,19 +1,33 @@
 apply plugin: 'com.android.application'
 
+// Build the separate "Factory Book" app (new design) with:  ./gradlew assembleDebug -PnewApp
+// It gets its own app id, so it installs NEXT TO the classic app with its own data.
+def isNewApp = project.hasProperty('newApp')
+
 android {
     namespace "com.brickworks.erp"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.brickworks.erp"
+        applicationId isNewApp ? "com.brickworks.erp.newdesign" : "com.brickworks.erp"
+        resValue "string", "app_name", isNewApp ? "Factory Book" : "Brick ERP"
+        resValue "string", "title_activity_main", isNewApp ? "Factory Book" : "Brick ERP"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "2.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    // The new app uses its own launcher icon (src/newdesign/res). Added to the build-type
+    // source sets so it overrides the classic icon in main/res without a clash.
+    if (isNewApp) {
+        sourceSets {
+            debug.res.srcDirs += 'src/newdesign/res'
+            release.res.srcDirs += 'src/newdesign/res'
         }
     }
     buildTypes {

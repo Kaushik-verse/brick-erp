@@ -63,11 +63,15 @@ export async function processExcelImport(file, type) {
 
       if (!name) continue; // Skip empty rows
 
-      // Check if exists
-      const existing = await table.where('phone').equals(phone).first();
+      // Match by phone when given, otherwise by name. (Matching an EMPTY
+      // phone used to hit the first customer without a phone and overwrite
+      // their balance.)
+      const existing = phone
+        ? await table.where('phone').equals(phone).first()
+        : await table.where('name').equalsIgnoreCase(name).first();
       if (existing) {
-         // Update balance if they have one? We usually shouldn't overwrite, but since it's import...
-         await table.update(existing.id, { outstandingBalance: balance });
+         // Never overwrite a live balance — it is maintained by the ledger.
+         await table.update(existing.id, { name, phone: phone || existing.phone || '' });
       } else {
          await table.add({
            name,
@@ -110,7 +114,6 @@ export async function processExcelImport(file, type) {
         rate,
         amountPaid: paid,
         paymentChannel: channel,
-        allowOverdraw: true // Don't block import if stock is low
       });
       count++;
     }

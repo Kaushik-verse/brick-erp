@@ -1,4 +1,6 @@
 import { db } from './schema';
+import { todayISO, parseISODate } from '../utils/format';
+import { nextInvoiceNumber } from '../billing/invoiceNumber';
 
 /**
  * ledgerEngine.js
@@ -38,6 +40,12 @@ export async function recordSale({
   invoiceNumber,
   balanceDue: providedBalanceDue,
   paymentStatus: providedPaymentStatus,
+  remarks,
+  vehicleNumber,
+  charges,
+  tax,
+  id: existingId,
+  createdAt,
 }) {
   if (!customerId) throw new Error('A customer must be selected.');
   
@@ -59,7 +67,11 @@ export async function recordSale({
   const balanceDue = providedBalanceDue !== undefined ? providedBalanceDue : round2(totalAmount - paid);
   const paymentStatus = providedPaymentStatus !== undefined ? providedPaymentStatus : derivePaymentStatus(totalAmount, paid);
 
-  return db.transaction('rw', db.finishedStock, db.salesLog, db.customers, async () => {
+  return db.transaction('rw', db.finishedStock, db.salesLog, db.customers, db.settings, async () => {
+    // Every new sale gets a proper sequential invoice number (JVI/26-27/0001).
+    // `null` means "keep without a number" (old sales being edited).
+    const finalInvoiceNumber = invoiceNumber === undefined ? await nextInvoiceNumber(date) : invoiceNumber || undefined;
+
     // Deduct stock
     if (isMultiItem) {
       for (const item of items) {
@@ -80,21 +92,27 @@ export async function recordSale({
       }
     }
 
-    const id = await db.salesLog.add({
+    const record = {
       date,
       customerId,
       brickSize: isMultiItem ? undefined : brickSize,
       quantity: isMultiItem ? undefined : quantity,
       rate: isMultiItem ? undefined : rate,
       items,
-      invoiceNumber,
+      invoiceNumber: finalInvoiceNumber,
       totalAmount,
       amountPaid: paid,
       balanceDue,
       paymentStatus,
       paymentChannel,
-      createdAt: new Date().toISOString(),
-    });
+      remarks: remarks || undefined,
+      vehicleNumber: vehicleNumber || undefined,
+      charges: charges || undefined,
+      tax: tax || undefined,
+      createdAt: createdAt || new Date().toISOString(),
+    };
+    if (existingId) record.id = existingId;
+    const id = await db.salesLog.put(record);
 
     const customer = await db.customers.get(customerId);
     if (customer) {
@@ -103,7 +121,7 @@ export async function recordSale({
       });
     }
 
-    return { id, totalAmount, balanceDue, paymentStatus };
+    return { id, totalAmount, balanceDue, paymentStatus, invoiceNumber: finalInvoiceNumber };
   });
 }
 
@@ -170,88 +188,20 @@ export async function recordPurchase({
 }
 
 /**
- * Records a payment received against an existing sale (reduces balanceDue
- * on that sale and the customer's overall outstanding balance).
- */
-export async function recordSalePayment(saleId, amount, paymentChannel) {
-  return db.transaction('rw', db.salesLog, db.customers, async () => {
-    const sale = await db.salesLog.get(saleId);
-    if (!sale) throw new Error('Sale record not found.');
-
-    const newPaid = round2(sale.amountPaid + amount);
-    const newBalance = round2(sale.totalAmount - newPaid);
-    const newStatus = derivePaymentStatus(sale.totalAmount, newPaid);
-
-    await db.salesLog.update(saleId, {
-      amountPaid: newPaid,
-      balanceDue: newBalance,
-      paymentStatus: newStatus,
-      paymentChannel,
-    });
-
-    const customer = await db.customers.get(sale.customerId);
-    if (customer) {
-      await db.customers.update(sale.customerId, {
-        outstandingBalance: round2((customer.outstandingBalance || 0) - amount),
-      });
-    }
-
-    return { newPaid, newBalance, newStatus };
-  });
-}
-
-/**
- * Records a payment made against an existing purchase.
- */
-export async function recordPurchasePayment(purchaseId, amount, paymentChannel) {
-  return db.transaction('rw', db.purchaseLog, db.suppliers, async () => {
-    const purchase = await db.purchaseLog.get(purchaseId);
-    if (!purchase) throw new Error('Purchase record not found.');
-
-    const newPaid = round2(purchase.amountPaid + amount);
-    const newBalance = round2(purchase.totalAmount - newPaid);
-    const newStatus = derivePaymentStatus(purchase.totalAmount, newPaid);
-
-    await db.purchaseLog.update(purchaseId, {
-      amountPaid: newPaid,
-      balanceDue: newBalance,
-      paymentStatus: newStatus,
-      paymentChannel,
-    });
-
-    const supplier = await db.suppliers.get(purchase.supplierId);
-    if (supplier) {
-      await db.suppliers.update(purchase.supplierId, {
-        outstandingBalance: round2((supplier.outstandingBalance || 0) - amount),
-      });
-    }
-
-    return { newPaid, newBalance, newStatus };
-  });
-}
-
-/**
  * Aging buckets — used by both Sales (receivables) and Purchases (payables)
  * to flag overdue accounts. dueDays defaults to 30.
  */
 export function calculateAgingDays(transactionDate) {
-  const txDate = new Date(transactionDate);
+  const txDate = parseISODate(transactionDate) || new Date();
   const today = new Date();
   const diffMs = today.setHours(0, 0, 0, 0) - txDate.setHours(0, 0, 0, 0);
   return Math.floor(diffMs / (1000 * 60 * 60 * 24));
 }
 
-export function agingBucket(days) {
-  if (days <= 15) return { label: '0-15 days', tone: 'fresh' };
-  if (days <= 30) return { label: '16-30 days', tone: 'watch' };
-  if (days <= 60) return { label: '31-60 days', tone: 'overdue' };
-  return { label: '60+ days', tone: 'critical' };
-}
-
 export async function addCustomerCollection(customerId, amount, paymentChannel, date, remarks = '') {
   if (!customerId) throw new Error('A customer must be selected.');
   if (!amount || amount <= 0) throw new Error('Amount must be greater than zero.');
-  const paymentDate = date || new Date().toISOString().split('T')[0];
+  const paymentDate = date || todayISO();
 
   return db.transaction('rw', db.customerCollections, db.customers, async () => {
     const id = await db.customerCollections.add({
@@ -277,7 +227,7 @@ export async function addCustomerCollection(customerId, amount, paymentChannel, 
 export async function addSupplierPayment(supplierId, amount, paymentChannel, date, remarks = '') {
   if (!supplierId) throw new Error('A supplier must be selected.');
   if (!amount || amount <= 0) throw new Error('Amount must be greater than zero.');
-  const paymentDate = date || new Date().toISOString().split('T')[0];
+  const paymentDate = date || todayISO();
 
   return db.transaction('rw', db.supplierPayments, db.suppliers, async () => {
     const id = await db.supplierPayments.add({
@@ -331,22 +281,10 @@ export async function deleteProductionBatch(productionId) {
   });
 }
 
-export async function deleteSale(saleId) {
-  return db.transaction('rw', db.salesLog, db.finishedStock, db.customers, db.customerCollections, async () => {
-    const sale = await db.salesLog.get(saleId);
-    if (!sale) throw new Error('Sale record not found.');
+/** Error code thrown when a sale/purchase has later payments and `force` was not set. */
+export const LATER_PAYMENTS = 'LATER_PAYMENTS';
 
-    // Check if there are collections after this sale
-    const collections = await db.customerCollections
-      .where('customerId').equals(sale.customerId)
-      .toArray();
-      
-    const collectionsAfterSale = collections.filter(c => c.createdAt >= sale.createdAt);
-
-    if (collectionsAfterSale.length > 0) {
-      throw new Error('Cannot delete: Collections have been recorded after this sale.');
-    }
-
+async function revertSaleEffects(sale) {
     if (sale.items && Array.isArray(sale.items)) {
       for (const item of sale.items) {
         const stock = await db.finishedStock.where('brickSize').equals(item.description).first();
@@ -369,11 +307,58 @@ export async function deleteSale(saleId) {
     const customer = await db.customers.get(sale.customerId);
     if (customer) {
       await db.customers.update(customer.id, {
-        outstandingBalance: round2(customer.outstandingBalance - sale.balanceDue),
+        outstandingBalance: round2((customer.outstandingBalance || 0) - (sale.balanceDue || 0)),
       });
     }
+}
 
+/**
+ * Deletes a sale, returning its bricks to stock and removing its unpaid
+ * amount from the customer's balance. If payments were received from the
+ * customer after this sale, an error with code LATER_PAYMENTS is thrown
+ * unless `force` is true (the UI asks the user to confirm first).
+ */
+export async function deleteSale(saleId, { force = false } = {}) {
+  return db.transaction('rw', db.salesLog, db.finishedStock, db.customers, db.customerCollections, async () => {
+    const sale = await db.salesLog.get(saleId);
+    if (!sale) throw new Error('Sale record not found.');
+
+    if (!force) {
+      const collections = await db.customerCollections.where('customerId').equals(sale.customerId).toArray();
+      if (collections.some((c) => c.createdAt >= sale.createdAt)) {
+        const err = new Error('Payments were received from this customer after this sale.');
+        err.code = LATER_PAYMENTS;
+        throw err;
+      }
+    }
+
+    await revertSaleEffects(sale);
     await db.salesLog.delete(saleId);
+  });
+}
+
+/**
+ * Edits a sale atomically: the old sale's effects (stock + balance) are
+ * reversed and the new values applied in ONE transaction, so a failure
+ * can never leave the sale deleted. Keeps the same id, invoice number
+ * and creation time.
+ */
+export async function updateSale(saleId, newValues) {
+  return db.transaction('rw', db.salesLog, db.finishedStock, db.customers, db.customerCollections, db.settings, async () => {
+    const old = await db.salesLog.get(saleId);
+    if (!old) throw new Error('Sale record not found.');
+    await revertSaleEffects(old);
+    await db.salesLog.delete(saleId);
+    return recordSale({
+      invoiceNumber: old.invoiceNumber ?? null,
+      tax: old.tax,
+      charges: old.charges,
+      remarks: old.remarks,
+      vehicleNumber: old.vehicleNumber,
+      ...newValues,
+      id: saleId,
+      createdAt: old.createdAt,
+    });
   });
 }
 
@@ -385,7 +370,7 @@ export async function deleteCustomerCollection(collectionId) {
     const customer = await db.customers.get(col.customerId);
     if (customer) {
       await db.customers.update(customer.id, {
-        outstandingBalance: round2(customer.outstandingBalance + col.amount),
+        outstandingBalance: round2((customer.outstandingBalance || 0) + col.amount),
       });
     }
 
@@ -393,20 +378,18 @@ export async function deleteCustomerCollection(collectionId) {
   });
 }
 
-export async function deletePurchase(purchaseId) {
+export async function deletePurchase(purchaseId, { force = false } = {}) {
   return db.transaction('rw', db.purchaseLog, db.rawMaterials, db.suppliers, db.supplierPayments, async () => {
     const purchase = await db.purchaseLog.get(purchaseId);
     if (!purchase) throw new Error('Purchase record not found.');
 
-    // Check if there are payments after this purchase
-    const payments = await db.supplierPayments
-      .where('supplierId').equals(purchase.supplierId)
-      .toArray();
-      
-    const paymentsAfterPurchase = payments.filter(p => p.createdAt >= purchase.createdAt);
-
-    if (paymentsAfterPurchase.length > 0) {
-      throw new Error('Cannot delete: Payments have been recorded after this purchase.');
+    if (!force) {
+      const payments = await db.supplierPayments.where('supplierId').equals(purchase.supplierId).toArray();
+      if (payments.some((p) => p.createdAt >= purchase.createdAt)) {
+        const err = new Error('Payments were made to this supplier after this purchase.');
+        err.code = LATER_PAYMENTS;
+        throw err;
+      }
     }
 
     const material = await db.rawMaterials.get(purchase.materialId);
@@ -418,7 +401,8 @@ export async function deletePurchase(purchaseId) {
       const existingValue = material.currentStock * material.avgRate;
       const removedValue = purchase.quantity * purchase.rate;
       const newQty = material.currentStock - purchase.quantity;
-      const newAvgRate = newQty > 0 ? round2((existingValue - removedValue) / newQty) : 0;
+      // Guard against a negative average if stock was consumed at a different rate.
+      const newAvgRate = newQty > 0 ? Math.max(0, round2((existingValue - removedValue) / newQty)) : material.avgRate;
       
       await db.rawMaterials.update(material.id, {
         currentStock: round2(newQty),
@@ -429,7 +413,7 @@ export async function deletePurchase(purchaseId) {
     const supplier = await db.suppliers.get(purchase.supplierId);
     if (supplier) {
       await db.suppliers.update(supplier.id, {
-        outstandingBalance: round2(supplier.outstandingBalance - purchase.balanceDue),
+        outstandingBalance: round2((supplier.outstandingBalance || 0) - (purchase.balanceDue || 0)),
       });
     }
 
@@ -445,10 +429,81 @@ export async function deleteSupplierPayment(paymentId) {
     const supplier = await db.suppliers.get(pmt.supplierId);
     if (supplier) {
       await db.suppliers.update(supplier.id, {
-        outstandingBalance: round2(supplier.outstandingBalance + pmt.amount),
+        outstandingBalance: round2((supplier.outstandingBalance || 0) + pmt.amount),
       });
     }
 
     await db.supplierPayments.delete(paymentId);
   });
+}
+
+/**
+ * Manual stock correction (opening stock, breakage, physical count).
+ * Sets the item's stock to `newStock` and keeps an audit record of the
+ * change in stockAdjustments.
+ * @param {'raw'|'finished'} itemType
+ */
+export async function adjustStock({ itemType, itemId, newStock, reason = '', date }) {
+  const qty = Number(newStock);
+  if (!Number.isFinite(qty) || qty < 0) throw new Error('Enter a valid stock quantity (0 or more).');
+  const table = itemType === 'raw' ? db.rawMaterials : db.finishedStock;
+
+  return db.transaction('rw', table, db.stockAdjustments, async () => {
+    const item = await table.get(itemId);
+    if (!item) throw new Error('Item not found.');
+    const before = item.currentStock || 0;
+    const delta = round2(qty - before);
+    if (delta === 0) return { delta: 0 };
+    await table.update(itemId, { currentStock: round2(qty) });
+    await db.stockAdjustments.add({
+      date: date || todayISO(),
+      itemType,
+      itemId,
+      itemName: item.name || item.brickSize,
+      before,
+      after: round2(qty),
+      delta,
+      reason: reason.trim(),
+      createdAt: new Date().toISOString(),
+    });
+    return { delta };
+  });
+}
+
+/** Edits a customer's or supplier's name/phone. */
+export async function updateParty(kind, id, { name, phone, address, gstin }) {
+  const table = kind === 'customer' ? db.customers : db.suppliers;
+  const trimmed = (name || '').trim();
+  if (!trimmed) throw new Error('Name cannot be empty.');
+  const g = (gstin || '').trim().toUpperCase();
+  if (g && !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/.test(g)) {
+    throw new Error('GSTIN looks wrong — it should be 15 characters like 37ABCDE1234F1Z5.');
+  }
+  const changes = { name: trimmed, phone: (phone || '').trim() };
+  if (address !== undefined) changes.address = address.trim();
+  if (gstin !== undefined) changes.gstin = g;
+  await table.update(id, changes);
+}
+
+/** Deletes a customer/supplier — only allowed when they have no transactions. */
+export async function deleteParty(kind, id) {
+  if (kind === 'customer') {
+    const [sales, cols] = await Promise.all([
+      db.salesLog.where('customerId').equals(id).count(),
+      db.customerCollections.where('customerId').equals(id).count(),
+    ]);
+    if (sales + cols > 0) throw new Error('This customer has transactions. Delete those first.');
+    const c = await db.customers.get(id);
+    if (c && Math.abs(c.outstandingBalance || 0) > 0.009) throw new Error('This customer still has a balance.');
+    await db.customers.delete(id);
+  } else {
+    const [purchases, pays] = await Promise.all([
+      db.purchaseLog.where('supplierId').equals(id).count(),
+      db.supplierPayments.where('supplierId').equals(id).count(),
+    ]);
+    if (purchases + pays > 0) throw new Error('This supplier has transactions. Delete those first.');
+    const s = await db.suppliers.get(id);
+    if (s && Math.abs(s.outstandingBalance || 0) > 0.009) throw new Error('This supplier still has a balance.');
+    await db.suppliers.delete(id);
+  }
 }

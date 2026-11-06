@@ -1,23 +1,36 @@
 import { useState } from 'react';
-import { MessageCircle, FileText, Phone, Download, Trash2 } from 'lucide-react';
+import { MessageCircle, FileText, Phone, Download, Trash2, Pencil, Check, X, Share2 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import BottomSheet from '../../core/ui/BottomSheet';
 import GlassButton from '../../core/ui/GlassButton';
 import StatusPill from '../../core/ui/StatusPill';
 import { db } from '../../core/db/schema';
-import { calculateAgingDays, deleteSale, deleteCustomerCollection } from '../../core/db/ledgerEngine';
-import { formatINR, formatDateDisplay } from '../../core/utils/format';
-import { buildOutstandingReminderLink, openWhatsAppLink } from '../../core/utils/whatsapp';
-import { saveAndShareBlob } from '../../core/utils/nativeFileBridge';
+import {
+  calculateAgingDays,
+  deleteSale,
+  deleteCustomerCollection,
+  updateParty,
+  deleteParty,
+  LATER_PAYMENTS,
+} from '../../core/db/ledgerEngine';
+import { formatINR, formatDateDisplay, channelLabel } from '../../core/utils/format';
+import { GlassInput } from '../../core/ui/GlassFormControls';
 import { useUIStore } from '../../core/store/uiStore';
 import AddCollectionSheet from './AddCollectionSheet';
-import { generateStatementPDF } from '../documents/pdfExport';
+import StatementSheet from '../documents/StatementSheet';
+import { displayInvoiceNumber } from '../../core/billing/invoiceNumber';
+import { receiptNumber } from '../../core/billing/partyLedger';
 
 export default function CustomerLedgerSheet({ open, onClose, customerId, onNavigate, onEditSale }) {
   const pushToast = useUIStore((s) => s.pushToast);
-  const setInvoiceBuilderData = useUIStore((s) => s.setInvoiceBuilderData);
   const [sending, setSending] = useState(false);
   const [showAddCollection, setShowAddCollection] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editGstin, setEditGstin] = useState('');
+  const [showStatement, setShowStatement] = useState(false);
 
   const customer = useLiveQuery(
     () => (customerId ? db.customers.get(customerId) : null),
@@ -36,164 +49,186 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
         ...collections.map(c => ({ ...c, type: 'collection' }))
       ];
       
-      return mixed.sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id);
+      // Newest first; same-day entries ordered by entry time.
+      return mixed.sort(
+        (a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || '')
+      );
     },
     [customerId],
     []
   );
 
-  const settings = useLiveQuery(() => db.settings.toArray(), [], []);
-
   if (!customer) return null;
 
-  const handleWhatsAppReminder = async () => {
-    const factory = Object.fromEntries(settings.map((s) => [s.key, s.value]));
-    const link = buildOutstandingReminderLink({
-      name: customer.name,
-      phone: customer.phone,
-      amount: customer.outstandingBalance,
-      factoryName: factory.factoryName,
-      factoryPhone: factory.factoryPhone,
-    });
-    await openWhatsAppLink(link);
-  };
-
-  const handleExportStatement = async () => {
+  const runDoc = async (fn, errorText) => {
     setSending(true);
     try {
-      const factory = Object.fromEntries(settings.map((s) => [s.key, s.value]));
-      const blob = generateStatementPDF({
-        party: customer,
-        transactions: transactions,
-        factory,
-        type: 'customer',
-      });
-      await saveAndShareBlob(blob, `${customer.name}_statement.pdf`, 'application/pdf');
-      pushToast('Statement ready to share', 'success');
-    } catch (e) {
-      pushToast('Could not generate statement', 'error');
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const handleGenerateInvoice = async () => {
-    setSending(true);
-    try {
-      const chronoSorted = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date) || a.id - b.id);
-      
-      const items = [];
-      let currentSubtotal = 0;
-      let runningBalance = 0;
-      let totalPaid = 0;
-
-      for (const t of chronoSorted) {
-         const displayDate = t.date ? t.date.substring(0, 10) : '';
-         
-         if (t.type === 'sale') {
-           const itemsList = t.items || [{ description: t.brickSize || 'Fly Ash Brick', quantity: t.quantity || 0, rate: t.rate || 0, amount: t.totalAmount || 0 }];
-           for (let i = 0; i < itemsList.length; i++) {
-             const it = itemsList[i];
-             const amt = Number(it.amount) || 0;
-             const isLast = i === itemsList.length - 1;
-             const paid = isLast ? (t.amountPaid || 0) : 0;
-             runningBalance += amt - paid;
-             totalPaid += paid;
-             
-             items.push({
-                 id: Math.random().toString(),
-                 date: displayDate,
-                 description: `${it.description || 'Bricks'}`,
-                 quantity: it.quantity,
-                 rate: it.rate,
-                 amount: amt,
-                 paid: paid,
-                 balance: amt - paid, // Balance just for this day/transaction
-                 paymentMode: t.paymentChannel || 'cash'
-             });
-             currentSubtotal += amt;
-           }
-         } else if (t.type === 'collection') {
-           runningBalance -= t.amount;
-           totalPaid += t.amount;
-           items.push({
-               id: Math.random().toString(),
-               date: displayDate,
-               description: `Payment Received`,
-               quantity: '',
-               rate: '',
-               amount: 0,
-               paid: t.amount,
-               balance: undefined, // No balance to show for a pure payment row
-               paymentMode: t.paymentChannel || 'cash'
-           });
-         }
-      }
-
-      const invoiceData = {
-         invoiceNumber: `STMT-${String(customer.id).padStart(4, '0')}`,
-         date: new Date().toISOString(),
-         type: 'STATEMENT'
-      };
-
-      const summaryData = {
-         subtotal: currentSubtotal,
-         grandTotal: currentSubtotal,
-         amountPaid: totalPaid,
-         balanceDue: runningBalance,
-         paymentStatus: runningBalance > 0 ? 'partial' : 'paid',
-         paymentChannel: 'mixed'
-      };
-
-      setInvoiceBuilderData({
-         invoice: invoiceData,
-         items: items.length ? items : [{ id: '1', date: '', description: 'No history', quantity: '', rate: '', amount: 0, paid: 0, balance: 0 }],
-         summary: summaryData,
-         customer,
-      });
-
-      onClose();
-      if (onNavigate) {
-         onNavigate('invoice-builder');
-      }
+      await fn();
     } catch (e) {
       console.error(e);
-      pushToast('Error building consolidated invoice', 'error');
+      pushToast(e.message || errorText, 'error');
     } finally {
       setSending(false);
     }
   };
 
+  const handleWhatsAppReminder = () =>
+    runDoc(async () => {
+      const { sendPaymentReminder } = await import('../../core/billing/documents');
+      await sendPaymentReminder(customer.id);
+    }, 'Could not open WhatsApp');
+
+  const handleShareInvoice = (sale) =>
+    runDoc(async () => {
+      const { shareSaleInvoice } = await import('../../core/billing/documents');
+      await shareSaleInvoice(sale.id);
+    }, 'Could not create invoice');
+
+  const handleShareReceipt = (col) =>
+    runDoc(async () => {
+      const { shareCollectionReceipt } = await import('../../core/billing/documents');
+      await shareCollectionReceipt(col.id);
+    }, 'Could not create receipt');
+
   const handleDelete = async (t) => {
-    if (!window.confirm(`Are you sure you want to delete this ${t.type}? This will adjust balances.`)) return;
+    const label = t.type === 'sale' ? 'sale' : 'payment';
+    const amount = t.type === 'sale' ? t.totalAmount : t.amount;
+    if (
+      !window.confirm(
+        `Delete this ${label} of ${formatINR(amount)} on ${formatDateDisplay(t.date)}?\n\nThe customer's balance${
+          t.type === 'sale' ? ' and brick stock' : ''
+        } will be adjusted.`
+      )
+    )
+      return;
     try {
       if (t.type === 'sale') {
-        await deleteSale(t.id);
+        try {
+          await deleteSale(t.id);
+        } catch (e) {
+          if (e.code !== LATER_PAYMENTS) throw e;
+          if (
+            !window.confirm(
+              `${e.message}\n\nDeleting this sale will still reduce the balance by its unpaid amount (${formatINR(
+                t.balanceDue
+              )}). Continue?`
+            )
+          )
+            return;
+          await deleteSale(t.id, { force: true });
+        }
       } else {
         await deleteCustomerCollection(t.id);
       }
-      pushToast(`${t.type} deleted successfully`, 'success');
+      pushToast(`${label[0].toUpperCase()}${label.slice(1)} deleted`, 'success');
     } catch (e) {
-      pushToast(`Could not delete ${t.type}`, 'error');
+      pushToast(e.message || `Could not delete ${label}`, 'error');
+    }
+  };
+
+  const startEdit = () => {
+    setEditName(customer.name || '');
+    setEditPhone(customer.phone || '');
+    setEditAddress(customer.address || '');
+    setEditGstin(customer.gstin || '');
+    setEditing(true);
+  };
+
+  const saveEdit = async () => {
+    try {
+      await updateParty('customer', customer.id, { name: editName, phone: editPhone, address: editAddress, gstin: editGstin });
+      setEditing(false);
+      pushToast('Customer updated', 'success');
+    } catch (e) {
+      pushToast(e.message || 'Could not update customer', 'error');
+    }
+  };
+
+  const handleDeleteCustomer = async () => {
+    if (!window.confirm(`Delete customer "${customer.name}"?`)) return;
+    try {
+      await deleteParty('customer', customer.id);
+      pushToast('Customer deleted', 'success');
+      onClose();
+    } catch (e) {
+      pushToast(e.message || 'Could not delete customer', 'error');
     }
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title={customer.name} snapPoints={['90vh']}>
-      <div className="p-4 space-y-5 pb-10 max-h-[85vh] overflow-y-auto no-scrollbar">
-        <div className="bg-clay-800 rounded-2xl p-4 shadow-sm border border-clay-700">
-          <p className="text-clay-400 text-xs font-semibold mb-1 uppercase tracking-wider">Outstanding Balance</p>
-          <p className="text-2xl font-bold text-ledger-overdue mb-3">
-            {formatINR(customer.outstandingBalance)}
-          </p>
-          {customer.phone && (
-            <div className="flex items-center gap-1 text-clay-400 text-xs">
-              <Phone size={12} /> {customer.phone}
+    <BottomSheet open={open} onClose={onClose} title={customer.name} maxHeight="92vh">
+      <div className="space-y-5 pb-6">
+        <div className="glass-surface-light rounded-2xl p-4">
+          {editing ? (
+            <div className="space-y-3">
+              <GlassInput label="Name" value={editName} onChange={(e) => setEditName(e.target.value)} />
+              <GlassInput
+                label="Phone"
+                value={editPhone}
+                inputMode="tel"
+                onChange={(e) => setEditPhone(e.target.value)}
+              />
+              <GlassInput
+                label="Address (printed on invoice)"
+                value={editAddress}
+                onChange={(e) => setEditAddress(e.target.value)}
+                placeholder="Village / Town, District"
+              />
+              <GlassInput
+                label="GSTIN (optional)"
+                value={editGstin}
+                onChange={(e) => setEditGstin(e.target.value.toUpperCase())}
+                placeholder="15-character GST number"
+                maxLength={15}
+              />
+              <div className="flex gap-2">
+                <GlassButton size="sm" variant="glass" fullWidth icon={X} onClick={() => setEditing(false)}>
+                  Cancel
+                </GlassButton>
+                <GlassButton size="sm" fullWidth icon={Check} onClick={saveEdit}>
+                  Save
+                </GlassButton>
+              </div>
+              <button
+                onClick={handleDeleteCustomer}
+                className="w-full text-xs text-ledger-overdue/80 pt-1 touch-manipulation"
+              >
+                Delete this customer
+              </button>
             </div>
+          ) : (
+            <>
+              <div className="flex items-start justify-between">
+                <p className="text-clay-400 text-xs font-semibold mb-1 uppercase tracking-wider">
+                  {(customer.outstandingBalance || 0) < 0 ? 'Advance (we owe)' : 'Outstanding Balance'}
+                </p>
+                <button
+                  onClick={startEdit}
+                  aria-label="Edit customer"
+                  className="text-clay-400 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider touch-manipulation"
+                >
+                  <Pencil size={12} /> Edit
+                </button>
+              </div>
+              <p
+                className={`figure text-2xl font-bold mb-3 ${
+                  (customer.outstandingBalance || 0) > 0 ? 'text-ledger-overdue' : 'text-ledger-paid'
+                }`}
+              >
+                {formatINR(Math.abs(customer.outstandingBalance || 0))}
+              </p>
+              {customer.phone ? (
+                <a href={`tel:${customer.phone}`} className="inline-flex items-center gap-1 text-clay-300 text-xs">
+                  <Phone size={12} /> {customer.phone}
+                </a>
+              ) : (
+                <p className="text-xs text-clay-500">No phone — tap Edit to add one for WhatsApp</p>
+              )}
+            </>
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-2">
           <GlassButton
             fullWidth
             onClick={() => setShowAddCollection(true)}
@@ -201,22 +236,26 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
           >
             Receive Payment
           </GlassButton>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <GlassButton
               fullWidth
+              size="sm"
               onClick={handleWhatsAppReminder}
               icon={MessageCircle}
-              disabled={customer.outstandingBalance <= 0}
-              className="!bg-[#25D366] !from-[#25D366] !to-[#1FAF54] !border-[#25D366]/40 px-0"
-            />
+              disabled={customer.outstandingBalance <= 0 || sending}
+              className="!bg-[#25D366] !from-[#25D366] !to-[#1FAF54] !border-[#25D366]/40"
+            >
+              WhatsApp
+            </GlassButton>
             <GlassButton
               variant="glass"
               fullWidth
-              onClick={handleGenerateInvoice}
+              size="sm"
+              onClick={() => setShowStatement(true)}
               icon={FileText}
               disabled={sending}
             >
-              PDF
+              Statement
             </GlassButton>
           </div>
         </div>
@@ -225,31 +264,44 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
           <p className="text-xs font-semibold text-clay-400 uppercase tracking-wide mb-2">
             Transaction History
           </p>
-          <div className="space-y-2.5 max-h-[40vh] overflow-y-auto no-scrollbar">
+          <div className="space-y-2.5">
             {(transactions || []).map((t) => {
               if (t.type === 'sale') {
                 const aging = calculateAgingDays(t.date);
                 const status = t.balanceDue > 0 && aging > 30 ? 'overdue' : t.paymentStatus;
                 
-                let title = t.invoiceNumber || 'Sale';
-                if (!t.invoiceNumber && t.brickSize) {
-                  title = `${t.quantity} × ${t.brickSize}`;
-                } else if (t.items?.length) {
-                  title = `${title} (${t.items.length} items)`;
-                }
+                const title = t.items?.length
+                  ? `${t.items.length} item${t.items.length === 1 ? '' : 's'}`
+                  : `${Number(t.quantity).toLocaleString('en-IN')} × ${t.brickSize}`;
 
                 return (
                   <div key={`sale-${t.id}`} className="glass-surface-light rounded-xl p-3 border-l-2 border-transparent">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-medium text-clay-100">
-                        {title}
-                      </p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-clay-100 truncate">{title}</p>
+                        <p className="text-[10px] text-clay-500">{displayInvoiceNumber(t)}</p>
+                      </div>
                       <div className="flex items-center gap-2">
                         <StatusPill status={status} size="sm" />
-                        <button onClick={() => onEditSale && onEditSale(t)} className="text-clay-400 hover:text-clay-100 p-1 text-[10px] uppercase font-bold tracking-wider touch-manipulation">
-                          Edit
+                        <button
+                          onClick={() => handleShareInvoice(t)}
+                          disabled={sending}
+                          aria-label="Share invoice PDF"
+                          className="text-clay-400 hover:text-clay-100 p-2 -m-1 touch-manipulation disabled:opacity-40"
+                        >
+                          <Share2 size={14} />
                         </button>
-                        <button onClick={() => handleDelete(t)} className="text-clay-500 hover:text-ledger-overdue transition-colors p-1 touch-manipulation">
+                        {/* Invoice (multi-item) sales can't be edited in the quick sale form without losing items. */}
+                        {!t.items?.length && (
+                          <button
+                            onClick={() => onEditSale && onEditSale(t)}
+                            aria-label="Edit sale"
+                            className="text-clay-400 hover:text-clay-100 p-2 -m-1 touch-manipulation"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                        <button onClick={() => handleDelete(t)} aria-label="Delete sale" className="text-clay-500 hover:text-ledger-overdue transition-colors p-2 -m-1 touch-manipulation">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -269,21 +321,30 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
                 return (
                   <div key={`col-${t.id}`} className="glass-surface-light rounded-xl p-3 border-l-2 border-ledger-paid bg-ledger-paid/5">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-medium text-clay-100">
-                        Payment Received
-                      </p>
+                      <div>
+                        <p className="text-sm font-medium text-clay-100">Payment Received</p>
+                        <p className="text-[10px] text-clay-500">{receiptNumber(t)}</p>
+                      </div>
                       <div className="flex items-center gap-2">
                         <p className="figure font-bold text-ledger-paid text-sm">
                           +{formatINR(t.amount)}
                         </p>
-                        <button onClick={() => handleDelete(t)} className="text-clay-500 hover:text-ledger-overdue transition-colors p-1 touch-manipulation">
+                        <button
+                          onClick={() => handleShareReceipt(t)}
+                          disabled={sending}
+                          aria-label="Share payment receipt"
+                          className="text-clay-400 hover:text-clay-100 p-2 -m-1 touch-manipulation disabled:opacity-40"
+                        >
+                          <Share2 size={14} />
+                        </button>
+                        <button onClick={() => handleDelete(t)} aria-label="Delete payment" className="text-clay-500 hover:text-ledger-overdue transition-colors p-2 -m-1 touch-manipulation">
                           <Trash2 size={14} />
                         </button>
                       </div>
                     </div>
                     <div className="flex items-center justify-between text-xs text-clay-400">
                       <span>{formatDateDisplay(t.date)}</span>
-                      <span>{(t.paymentChannel || 'cash').toUpperCase()}{t.remarks ? ` · ${t.remarks}` : ''}</span>
+                      <span>{channelLabel(t.paymentChannel || 'cash')}{t.remarks ? ` · ${t.remarks}` : ''}</span>
                     </div>
                   </div>
                 );
@@ -295,6 +356,13 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
           </div>
         </div>
       </div>
+      <StatementSheet
+        open={showStatement}
+        onClose={() => setShowStatement(false)}
+        type="customer"
+        partyId={customer.id}
+        partyName={customer.name}
+      />
       {showAddCollection && (
         <AddCollectionSheet
           open={showAddCollection}

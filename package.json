@@ -1,7 +1,7 @@
 {
   "name": "brick-erp",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "description": "Fly Ash Brick Factory ERP — native-first Android app via Capacitor",
   "scripts": {
@@ -11,7 +11,11 @@
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android",
     "cap:run": "npx cap run android",
-    "android:build": "npm run build && npx cap sync android"
+    "android:build": "npm run build && npx cap sync android",
+    "dev:new": "VITE_APP_VARIANT=new vite --port 5174",
+    "build:new": "VITE_APP_VARIANT=new vite build",
+    "android:build:new": "npm run build:new && npx cap sync android && cd android && ./gradlew assembleDebug -PnewApp && mkdir -p ../apk && cp app/build/outputs/apk/debug/app-debug.apk ../apk/FactoryBook.apk",
+    "android:build:classic": "npm run build && npx cap sync android && cd android && ./gradlew assembleDebug && mkdir -p ../apk && cp app/build/outputs/apk/debug/app-debug.apk ../apk/BrickERP-Classic.apk"
   },
   "dependencies": {
     "@capacitor/android": "^6.1.2",
@@ -26,15 +30,14 @@
     "@capacitor/status-bar": "^6.0.1",
     "@codetrix-studio/capacitor-google-auth": "^3.4.0-rc.4",
     "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
     "dexie": "^4.0.10",
     "dexie-react-hooks": "^1.1.7",
     "exceljs": "^4.4.0",
-    "file-saver": "^2.0.5",
     "framer-motion": "^11.11.17",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "lucide-react": "^0.453.0",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^5.0.1"

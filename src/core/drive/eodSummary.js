@@ -1,51 +1,64 @@
 import { db } from '../db/schema';
-import { formatINR, formatDateDisplay } from '../utils/format';
+import { formatINR, formatDateDisplay, formatNumber, isCashChannel, isBankChannel } from '../utils/format';
 
 /**
  * eodSummary.js
  * --------------
  * Compiles a single day's complete financial + production movement into
- * a clean, dispatch-ready plain-text summary. Designed to be sent to the
- * factory owner via WhatsApp (using the same deep-link mechanism as
- * customer reminders) or any other native share sheet.
+ * a clean, dispatch-ready plain-text summary for WhatsApp.
+ *
+ * Includes customer payments and supplier payments received/made that
+ * day (not only money paid at the time of sale/purchase), and treats
+ * UPI/cheque as bank money.
  */
+const sum = (rows, fn) => rows.reduce((s, r) => s + (Number(fn(r)) || 0), 0);
+
 export async function compileEndOfDaySummary(dateISO) {
-  const [sales, purchases, expenses, production, settingsRows] = await Promise.all([
-    db.salesLog.where('date').equals(dateISO).toArray(),
-    db.purchaseLog.where('date').equals(dateISO).toArray(),
-    db.expenses.where('date').equals(dateISO).toArray(),
-    db.productionLog.where('date').equals(dateISO).toArray(),
-    db.settings.toArray(),
-  ]);
+  const onDay = (table) => table.where('date').equals(dateISO).toArray();
+  const [sales, purchases, expenses, production, collections, supplierPays, settingsRows, customers] =
+    await Promise.all([
+      onDay(db.salesLog),
+      onDay(db.purchaseLog),
+      onDay(db.expenses),
+      onDay(db.productionLog),
+      onDay(db.customerCollections),
+      onDay(db.supplierPayments),
+      db.settings.toArray(),
+      db.customers.toArray(),
+    ]);
 
-  const factoryName =
-    settingsRows.find((s) => s.key === 'factoryName')?.value || 'Brick Factory';
+  const factoryName = settingsRows.find((s) => s.key === 'factoryName')?.value || 'Brick Factory';
+  const customerName = Object.fromEntries(customers.map((c) => [c.id, c.name]));
 
-  const totalSalesAmount = sales.reduce((s, r) => s + r.totalAmount, 0);
-  const totalCollected = sales.reduce((s, r) => s + r.amountPaid, 0);
-  const newCreditExtended = sales.reduce((s, r) => s + r.balanceDue, 0);
+  const totalSalesAmount = sum(sales, (r) => r.totalAmount);
+  const paidAtSale = sum(sales, (r) => r.amountPaid);
+  const newCreditExtended = sum(sales, (r) => r.balanceDue);
+  const collectionsTotal = sum(collections, (r) => r.amount);
 
-  const totalPurchaseAmount = purchases.reduce((s, r) => s + r.totalAmount, 0);
-  const totalPaidToSuppliers = purchases.reduce((s, r) => s + r.amountPaid, 0);
+  const totalPurchaseAmount = sum(purchases, (r) => r.totalAmount);
+  const paidToSuppliers = sum(purchases, (r) => r.amountPaid) + sum(supplierPays, (r) => r.amount);
 
-  const totalExpenseAmount = expenses.reduce((s, r) => s + r.amount, 0);
+  const totalExpenseAmount = sum(expenses, (r) => r.amount);
   const expensesByCategory = expenses.reduce((acc, e) => {
     acc[e.category] = (acc[e.category] || 0) + e.amount;
     return acc;
   }, {});
 
-  const cashIn = sales
-    .filter((s) => s.paymentChannel === 'cash')
-    .reduce((s, r) => s + r.amountPaid, 0);
-  const cashOut =
-    expenses.filter((e) => e.paymentChannel === 'cash').reduce((s, r) => s + r.amount, 0) +
-    purchases
-      .filter((p) => p.paymentChannel === 'cash')
-      .reduce((s, r) => s + r.amountPaid, 0);
-  const closingCashMovement = cashIn - cashOut;
+  const inBy = (pred) =>
+    sum(sales.filter((s) => pred(s.paymentChannel)), (r) => r.amountPaid) +
+    sum(collections.filter((c) => pred(c.paymentChannel)), (r) => r.amount);
+  const outBy = (pred) =>
+    sum(expenses.filter((e) => pred(e.paymentChannel)), (r) => r.amount) +
+    sum(purchases.filter((p) => pred(p.paymentChannel)), (r) => r.amountPaid) +
+    sum(supplierPays.filter((p) => pred(p.paymentChannel)), (r) => r.amount);
 
-  const totalBricksProduced = production.reduce((s, r) => s + r.quantity, 0);
-  const totalProductionCost = production.reduce((s, r) => s + r.totalCost, 0);
+  const cashIn = inBy(isCashChannel);
+  const cashOut = outBy(isCashChannel);
+  const bankIn = inBy(isBankChannel);
+  const bankOut = outBy(isBankChannel);
+
+  const totalBricksProduced = sum(production, (r) => r.quantity);
+  const totalProductionCost = sum(production, (r) => r.totalCost);
   const productionBySize = production.reduce((acc, p) => {
     acc[p.brickSize] = (acc[p.brickSize] || 0) + p.quantity;
     return acc;
@@ -56,28 +69,31 @@ export async function compileEndOfDaySummary(dateISO) {
     `🗓️ ${formatDateDisplay(dateISO)}`,
     '',
     '🏭 *Production*',
-    `Total bricks produced: ${totalBricksProduced}`,
-    ...Object.entries(productionBySize).map(([size, qty]) => `  • ${size}: ${qty}`),
+    `Bricks produced: ${formatNumber(totalBricksProduced)}`,
+    ...Object.entries(productionBySize).map(([size, qty]) => `  • ${size}: ${formatNumber(qty)}`),
     `Production cost: ${formatINR(totalProductionCost)}`,
     '',
     '💰 *Sales*',
-    `Total sales value: ${formatINR(totalSalesAmount)}`,
-    `Amount collected: ${formatINR(totalCollected)}`,
-    `New credit extended: ${formatINR(newCreditExtended)}`,
-    `Transactions: ${sales.length}`,
+    `Sales value: ${formatINR(totalSalesAmount)} (${sales.length} bills)`,
+    `Paid at sale: ${formatINR(paidAtSale)}`,
+    `New credit given: ${formatINR(newCreditExtended)}`,
+    '',
+    '📥 *Payments Received*',
+    `Total: ${formatINR(collectionsTotal)}`,
+    ...collections.map((c) => `  • ${customerName[c.customerId] || 'Customer'}: ${formatINR(c.amount)}`),
     '',
     '📦 *Purchases*',
-    `Total purchase value: ${formatINR(totalPurchaseAmount)}`,
-    `Paid to suppliers: ${formatINR(totalPaidToSuppliers)}`,
+    `Purchase value: ${formatINR(totalPurchaseAmount)}`,
+    `Paid to suppliers: ${formatINR(paidToSuppliers)}`,
     '',
     '🧾 *Expenses*',
     `Total: ${formatINR(totalExpenseAmount)}`,
     ...Object.entries(expensesByCategory).map(([cat, amt]) => `  • ${cat}: ${formatINR(amt)}`),
     '',
-    '💵 *Cash Movement*',
-    `Cash in: ${formatINR(cashIn)}`,
-    `Cash out: ${formatINR(cashOut)}`,
-    `Net cash movement: ${formatINR(closingCashMovement)}`,
+    '💵 *Money Movement*',
+    `Cash in: ${formatINR(cashIn)} | Cash out: ${formatINR(cashOut)}`,
+    `Bank/UPI in: ${formatINR(bankIn)} | Bank out: ${formatINR(bankOut)}`,
+    `Net for the day: ${formatINR(cashIn + bankIn - cashOut - bankOut)}`,
   ];
 
   return lines.join('\n');

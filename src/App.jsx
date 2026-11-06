@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import WidgetSync from './core/hooks/WidgetSync';
 import BottomNav from './core/ui/BottomNav';
 import ScreenTransition from './core/ui/ScreenTransition';
@@ -21,14 +21,9 @@ import InvoiceSettingsScreen from './features/settings/InvoiceSettingsScreen';
 import PassbookScreen from './features/passbook/PassbookScreen';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
-import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { seedDatabaseIfEmpty } from './core/db/schema';
-
-GoogleAuth.initialize({
-  clientId: '813773523036-4vo5qijl8uvtdqsd83qb5c7c7j9hth0u.apps.googleusercontent.com',
-  scopes: ['profile', 'email', 'https://www.googleapis.com/auth/drive.appdata'],
-  grantOfflineAccess: Capacitor.isNativePlatform(),
-});
+import { startAutoBackup, requestPersistentStorage } from './core/backup/autoBackup';
+import { handleBack } from './core/store/backStack';
 
 /**
  * App
@@ -54,76 +49,96 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [subScreen, setSubScreen] = useState(null);
   const [dbReady, setDbReady] = useState(false);
+  const [dbError, setDbError] = useState(null);
 
-  useEffect(() => {
+  const initDb = () => {
+    setDbError(null);
     seedDatabaseIfEmpty()
       .then(() => setDbReady(true))
-      .catch(e => {
+      .catch((e) => {
+        // Never open the app on a broken database: an empty-looking app
+        // could make the user think data is lost and start re-entering it.
         console.error('DB Init Error:', e);
-        // Force ready anyway to avoid being completely stuck, 
-        // though some DB functions might fail if schema is broken.
-        setDbReady(true);
+        setDbError(e);
       });
+  };
+
+  useEffect(() => {
+    initDb();
+    requestPersistentStorage();
   }, []);
 
-  // Automatic daily Google Drive Backup
+  // Automatic backups (phone storage + Google Drive if connected)
   useEffect(() => {
-    if (!dbReady) return;
-    const runAutoBackup = async () => {
-      try {
-        const { getLastSyncTimestamp, uploadBackupToDrive } = await import('./core/drive/driveSync');
-        const lastSync = await getLastSyncTimestamp();
-        const now = new Date();
-        const last = lastSync ? new Date(lastSync) : null;
-        
-        // Only run auto-backup if no sync today (or > 12 hours ago)
-        if (!last || (now - last) > 12 * 60 * 60 * 1000) {
-          if (!Capacitor.isNativePlatform()) return; // Skip silent web auto-auth
-          const user = await GoogleAuth.refresh();
-          if (user?.authentication?.accessToken) {
-            await uploadBackupToDrive(user.authentication.accessToken);
-            console.log('Auto-backup to Google Drive successful');
-          }
-        }
-      } catch (e) {
-        // Silently fail: user might not have connected Drive yet, or no internet.
-        console.log('Auto-backup skipped or failed:', e);
-      }
-    };
-    runAutoBackup();
+    if (!dbReady) return undefined;
+    return startAutoBackup();
   }, [dbReady]);
+
+  // Keep latest navigation state in a ref so the back-button listener is registered once.
+  const navRef = useRef({ activeTab, subScreen });
+  navRef.current = { activeTab, subScreen };
 
   // Android hardware back button handling (Capacitor App plugin)
   useEffect(() => {
-    let cleanup;
+    let listener;
+    let disposed = false;
     (async () => {
       if (Capacitor.isNativePlatform()) {
         try {
           await StatusBar.setStyle({ style: Style.Dark });
           await StatusBar.setBackgroundColor({ color: '#15110D' });
-        } catch (e) {
+        } catch {
           // ignore web
         }
       }
 
       try {
         const { App: CapApp } = await import('@capacitor/app');
-        const listener = await CapApp.addListener('backButton', () => {
-          if (subScreen) {
+        const handle = await CapApp.addListener('backButton', () => {
+          if (handleBack()) return; // an open sheet consumed it
+          const { activeTab: tab, subScreen: sub } = navRef.current;
+          if (sub === 'data-migration') {
+            setSubScreen('settings');
+          } else if (sub) {
             setSubScreen(null);
-          } else if (activeTab !== 'dashboard') {
+          } else if (tab !== 'dashboard') {
             setActiveTab('dashboard');
           } else {
             CapApp.exitApp();
           }
         });
-        cleanup = () => listener.remove();
+        if (disposed) handle.remove();
+        else listener = handle;
       } catch {
         /* not running in Capacitor — ignore */
       }
     })();
-    return () => cleanup?.();
-  }, [activeTab, subScreen]);
+    return () => {
+      disposed = true;
+      listener?.remove();
+    };
+  }, []);
+
+  if (dbError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-kiln-900 px-8">
+        <div className="max-w-sm text-center space-y-4">
+          <p className="text-lg font-display font-semibold text-clay-50">Could not open your ledger</p>
+          <p className="text-sm text-clay-400 leading-relaxed">
+            Your data has not been deleted. Please close the app completely and open it again. If this keeps
+            happening, contact support before reinstalling the app.
+          </p>
+          <p className="text-[11px] text-clay-500 break-words">{String(dbError?.message || dbError)}</p>
+          <button
+            onClick={initDb}
+            className="h-12 px-6 rounded-2xl bg-ember-500 text-clay-50 font-semibold touch-manipulation"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!dbReady) {
     return (
@@ -144,7 +159,7 @@ export default function App() {
   const renderMainScreen = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardScreen onNavigate={handleTabChange} />;
+        return <DashboardScreen onNavigate={handleTabChange} onOpenSubScreen={setSubScreen} />;
       case 'production':
         return <ProductionScreen />;
       case 'inventory':
@@ -163,7 +178,7 @@ export default function App() {
   const renderSubScreen = () => {
     switch (subScreen) {
       case 'expenses':
-        return <ExpensesScreen />;
+        return <ExpensesScreen onBack={() => setSubScreen(null)} />;
       case 'documents':
         return <DocumentHubScreen onBack={() => setSubScreen(null)} />;
       case 'drive-sync':

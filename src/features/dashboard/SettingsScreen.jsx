@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Save, Database } from 'lucide-react';
+import { Save, Database } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
 import GlassButton from '../../core/ui/GlassButton';
-import { GlassInput } from '../../core/ui/GlassFormControls';
+import { GlassInput, GlassSelect } from '../../core/ui/GlassFormControls';
+import { GST_STATES, stateCodeFromGstin } from '../../core/billing/profile';
+import { financialYearCode } from '../../core/billing/invoiceNumber';
 import { db } from '../../core/db/schema';
-import { Preferences } from '@capacitor/preferences';
-import { deleteBackupFromDrive } from '../../core/drive/driveSync';
+import { factoryResetWithSafetyBackup } from '../../core/backup/localBackups';
 import { useUIStore } from '../../core/store/uiStore';
 import { useFinishedStock } from '../../core/hooks/useDexieHooks';
 
@@ -24,6 +25,12 @@ export default function SettingsScreen({ onBack, onNavigate }) {
   const [accountNumber, setAccountNumber] = useState('');
   const [ifscCode, setIfscCode] = useState('');
   const [upiId, setUpiId] = useState('');
+  const [gstin, setGstin] = useState('');
+  const [stateCode, setStateCode] = useState('');
+  const [factoryEmail, setFactoryEmail] = useState('');
+  const [bankBranch, setBankBranch] = useState('');
+  const [accountHolder, setAccountHolder] = useState('');
+  const [invoicePrefix, setInvoicePrefix] = useState('');
 
   const [sellingPrices, setSellingPrices] = useState({});
   const [saving, setSaving] = useState(false);
@@ -39,18 +46,35 @@ export default function SettingsScreen({ onBack, onNavigate }) {
     setAccountNumber(map.accountNumber || '');
     setIfscCode(map.ifscCode || '');
     setUpiId(map.upiId || '');
+    setGstin(map.gstin || '');
+    setStateCode(map.stateCode || stateCodeFromGstin(map.gstin) || '37');
+    setFactoryEmail(map.factoryEmail || '');
+    setBankBranch(map.bankBranch || '');
+    setAccountHolder(map.accountHolder || '');
+    setInvoicePrefix(map.invoicePrefix || 'JVI');
   }, [settings]);
+
+  const gstinClean = gstin.trim().toUpperCase();
+  const gstinValid = !gstinClean || /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/.test(gstinClean);
+  const upiValid = !upiId.trim() || /^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(upiId.trim());
 
   useEffect(() => {
     if (!finishedStock) return;
-    const prices = {};
-    finishedStock.forEach((f) => {
-      prices[f.id] = String(f.sellingPrice);
+    // Only fill prices the user hasn't started editing.
+    setSellingPrices((prev) => {
+      const next = { ...prev };
+      finishedStock.forEach((f) => {
+        if (next[f.id] === undefined) next[f.id] = String(f.sellingPrice ?? '');
+      });
+      return next;
     });
-    setSellingPrices(prices);
   }, [finishedStock]);
 
   const handleSave = async () => {
+    if (!upiValid) {
+      pushToast('Please fix the UPI ID first', 'error');
+      return;
+    }
     setSaving(true);
     try {
       await updateSetting('factoryName', factoryName);
@@ -60,10 +84,19 @@ export default function SettingsScreen({ onBack, onNavigate }) {
       await updateSetting('bankName', bankName);
       await updateSetting('accountNumber', accountNumber);
       await updateSetting('ifscCode', ifscCode);
-      await updateSetting('upiId', upiId);
+      await updateSetting('upiId', upiId.trim());
+      await updateSetting('gstin', gstinClean);
+      await updateSetting('stateCode', stateCode);
+      await updateSetting('factoryEmail', factoryEmail.trim());
+      await updateSetting('bankBranch', bankBranch.trim());
+      await updateSetting('accountHolder', accountHolder.trim());
+      await updateSetting('invoicePrefix', (invoicePrefix.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '') || 'JVI'));
 
       for (const [id, price] of Object.entries(sellingPrices)) {
-        await db.finishedStock.update(Number(id), { sellingPrice: Number(price) || 0 });
+        const n = Number(price);
+        if (price !== '' && Number.isFinite(n) && n >= 0) {
+          await db.finishedStock.update(Number(id), { sellingPrice: n });
+        }
       }
 
       pushToast('Settings saved', 'success');
@@ -75,46 +108,26 @@ export default function SettingsScreen({ onBack, onNavigate }) {
   };
 
   const handleFactoryReset = async () => {
-    if (!window.confirm('WARNING: This will permanently delete ALL data, sales, purchases, and settings. This cannot be undone. Are you absolutely sure?')) return;
-    if (!window.confirm('Final confirmation: Delete EVERYTHING?')) return;
-    
+    if (
+      !window.confirm(
+        'WARNING: This deletes ALL sales, purchases, customers, stock and settings from this phone.\n\n' +
+          'A safety backup is saved first, and your Google Drive backups are NOT touched, so you can restore later.\n\nContinue?'
+      )
+    )
+      return;
+    const typed = window.prompt('Type DELETE (in capital letters) to confirm the reset:');
+    if (typed !== 'DELETE') {
+      pushToast('Reset cancelled', 'info');
+      return;
+    }
+
     setSaving(true);
     try {
-      await Promise.all([
-        db.rawMaterials.clear(),
-        db.recipes.clear(),
-        db.finishedStock.clear(),
-        db.purchaseLog.clear(),
-        db.supplierPayments.clear(),
-        db.productionLog.clear(),
-        db.salesLog.clear(),
-        db.customerCollections.clear(),
-        db.expenses.clear(),
-        db.customers.clear(),
-        db.suppliers.clear(),
-        db.settings.clear(),
-        db.driveSyncMeta.clear(),
-        db.units.clear(),
-        db.vehicles.clear(),
-        db.drivers.clear(),
-      ]);
-      await Preferences.clear();
-      
-      const gdriveToken = localStorage.getItem('gdrive_token');
-      if (gdriveToken) {
-        try {
-          await deleteBackupFromDrive(gdriveToken);
-          localStorage.removeItem('gdrive_token');
-          localStorage.removeItem('gdrive_token_expiry');
-        } catch (e) {
-          console.warn('Could not delete drive backup', e);
-        }
-      }
-
-      pushToast('Database reset successfully. Reloading...', 'success');
+      await factoryResetWithSafetyBackup();
+      pushToast('Database reset. A safety backup was saved. Reloading…', 'success');
       setTimeout(() => window.location.reload(), 1500);
     } catch (e) {
-      pushToast('Error resetting database', 'error');
+      pushToast(`Reset stopped: ${e.message || 'could not save safety backup'}`, 'error');
       setSaving(false);
     }
   };
@@ -124,11 +137,7 @@ export default function SettingsScreen({ onBack, onNavigate }) {
       <ScreenHeader
         eyebrow="Configuration"
         title="Factory Settings"
-        action={
-          <button onClick={onBack} className="w-10 h-10 rounded-full glass-surface-light flex items-center justify-center touch-manipulation">
-            <ArrowLeft size={18} className="text-clay-300" />
-          </button>
-        }
+        onBack={onBack}
       />
 
       <div className="px-5 space-y-4">
@@ -138,21 +147,63 @@ export default function SettingsScreen({ onBack, onNavigate }) {
           <GlassInput label="Phone" value={factoryPhone} onChange={(e) => setFactoryPhone(e.target.value)} inputMode="tel" />
           <GlassInput label="Address" value={factoryAddress} onChange={(e) => setFactoryAddress(e.target.value)} />
           <GlassInput label="Business Categories" value={businessCategories} onChange={(e) => setBusinessCategories(e.target.value)} placeholder="e.g. Fly Ash Bricks | RCC Pipes" />
+          <GlassInput label="Email (optional)" type="email" value={factoryEmail} onChange={(e) => setFactoryEmail(e.target.value)} />
+        </GlassCard>
+
+        <GlassCard padding="p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-clay-100 mb-1">GST & Invoice Numbering</h3>
+          <GlassInput
+            label="GSTIN"
+            value={gstin}
+            maxLength={15}
+            onChange={(e) => {
+              const v = e.target.value.toUpperCase();
+              setGstin(v);
+              const code = stateCodeFromGstin(v);
+              if (code) setStateCode(code);
+            }}
+            error={!gstinValid ? `GSTIN must be 15 characters (now ${gstinClean.length}). Please check your GST certificate.` : ''}
+          />
+          <GlassSelect label="State" value={stateCode} onChange={(e) => setStateCode(e.target.value)}>
+            {Object.entries(GST_STATES).map(([code, name]) => (
+              <option key={code} value={code}>
+                {name} ({code})
+              </option>
+            ))}
+          </GlassSelect>
+          <GlassInput
+            label="Invoice Number Prefix"
+            value={invoicePrefix}
+            maxLength={8}
+            onChange={(e) => setInvoicePrefix(e.target.value.toUpperCase())}
+          />
+          <p className="text-[11px] text-clay-500 -mt-1 ml-1">
+            Bills are numbered {(invoicePrefix || 'JVI').toUpperCase()}/{financialYearCode()}/0001, 0002… and restart every April.
+          </p>
         </GlassCard>
 
         <GlassCard padding="p-4 space-y-3">
           <h3 className="text-sm font-semibold text-clay-100 mb-1">Bank Details (For Invoices)</h3>
+          <GlassInput label="Account Holder Name" value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} placeholder="Same as factory name if blank" />
           <GlassInput label="Bank Name" value={bankName} onChange={(e) => setBankName(e.target.value)} />
+          <GlassInput label="Branch" value={bankBranch} onChange={(e) => setBankBranch(e.target.value)} />
           <GlassInput label="Account Number" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
           <GlassInput label="IFSC Code" value={ifscCode} onChange={(e) => setIfscCode(e.target.value)} />
-          <GlassInput label="UPI ID (Optional)" value={upiId} onChange={(e) => setUpiId(e.target.value)} />
+          <GlassInput
+            label="UPI ID (for pay-by-QR on bills)"
+            value={upiId}
+            onChange={(e) => setUpiId(e.target.value)}
+            placeholder="e.g. jayavasavi@sbi"
+            error={!upiValid ? 'UPI ID looks wrong — it should look like name@bank' : ''}
+          />
+          <p className="text-[11px] text-clay-500 -mt-1 ml-1">
+            With a UPI ID, every invoice and statement gets a QR code with the exact amount due — the customer scans and pays.
+          </p>
         </GlassCard>
-
-
 
         <GlassCard padding="p-4 space-y-3">
           <h3 className="text-sm font-semibold text-clay-100 mb-1">Selling Prices</h3>
-          {(finishedStock || []).map((f) => (
+          {(finishedStock || []).filter((f) => f.isActive !== 0).map((f) => (
             <GlassInput
               key={f.id}
               label={`${f.brickSize} Brick`}
@@ -178,7 +229,7 @@ export default function SettingsScreen({ onBack, onNavigate }) {
               Factory Reset Database
             </button>
             <p className="text-[10px] text-ledger-overdue/70 text-center mt-2 px-4 leading-tight">
-              Permanently deletes all transactions, inventory, and settings. Cannot be undone.
+              Deletes all data on this phone. A safety backup is saved first and Drive backups are kept.
             </p>
           </div>
         </GlassCard>

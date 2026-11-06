@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { registerPlugin, Capacitor } from '@capacitor/core';
-import { db } from '../db/schema';
 import { monthRange } from '../utils/format';
+import { computeKpis } from '../db/kpis';
+import { onDataChanged } from '../db/schema';
 
 const WidgetPlugin = registerPlugin('WidgetPlugin');
 
@@ -11,70 +12,37 @@ const WidgetPlugin = registerPlugin('WidgetPlugin');
  * directly, bypassing all React lifecycle complexity.
  */
 async function syncWidgetData() {
-  if (!Capacitor.isNativePlatform()) {
-    console.log('[WidgetSync] Not native, skipping');
-    return;
-  }
+  if (!Capacitor.isNativePlatform()) return;
 
-  console.log('[WidgetSync] Starting direct DB query...');
-  
   const { start: rangeStart, end: rangeEnd } = monthRange();
-  console.log('[WidgetSync] Date range:', rangeStart, 'to', rangeEnd);
 
   try {
-    const [sales, purchases, expenses, production, customers, suppliers, finishedStock, customerCollections, supplierPayments] =
-      await Promise.all([
-        db.salesLog.where('date').between(rangeStart, rangeEnd, true, true).toArray(),
-        db.purchaseLog.where('date').between(rangeStart, rangeEnd, true, true).toArray(),
-        db.expenses.where('date').between(rangeStart, rangeEnd, true, true).toArray(),
-        db.productionLog.where('date').between(rangeStart, rangeEnd, true, true).toArray(),
-        db.customers.toArray(),
-        db.suppliers.toArray(),
-        db.finishedStock.toArray(),
-        db.customerCollections.where('date').between(rangeStart, rangeEnd, true, true).toArray(),
-        db.supplierPayments.where('date').between(rangeStart, rangeEnd, true, true).toArray(),
-      ]);
-
-    const totalSales = sales.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
-    const collectionsTotal = customerCollections.reduce((sum, c) => sum + (c.amount || 0), 0);
-    const totalCollected = sales.reduce((sum, s) => sum + (s.amountPaid || 0), 0) + collectionsTotal;
-    const totalPurchases = purchases.reduce((sum, p) => sum + (p.totalAmount || 0), 0);
-    const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-    const totalProduced = production.reduce((sum, p) => sum + (p.quantity || 0), 0);
-    const totalProductionCost = production.reduce((sum, p) => sum + (p.totalCost || 0), 0);
-    const receivables = customers.reduce((sum, c) => sum + (c.outstandingBalance || 0), 0);
-    const payables = suppliers.reduce((sum, s) => sum + (s.outstandingBalance || 0), 0);
-    const finishedStockValue = finishedStock.reduce((sum, f) => sum + (f.currentStock || 0) * (f.costPrice || 0), 0);
-
-    const cashIn = sales.filter(s => s.paymentChannel === 'cash').reduce((sum, s) => sum + (s.amountPaid || 0), 0)
-      + customerCollections.filter(c => c.paymentChannel === 'cash').reduce((sum, c) => sum + (c.amount || 0), 0);
-    const cashOut = expenses.filter(e => e.paymentChannel === 'cash').reduce((sum, e) => sum + (e.amount || 0), 0)
-      + purchases.filter(p => p.paymentChannel === 'cash').reduce((sum, p) => sum + (p.amountPaid || 0), 0)
-      + supplierPayments.filter(p => p.paymentChannel === 'cash').reduce((sum, p) => sum + (p.amount || 0), 0);
-
+    const k = await computeKpis(rangeStart, rangeEnd);
+    // Keep the payload shape the native widgets already understand.
     const kpiData = {
-      totalSales,
-      totalCollected,
-      totalPurchases,
-      totalExpenses,
-      totalProduced,
-      totalProductionCost,
-      receivables,
-      payables,
-      finishedStockValue,
-      cashIn,
-      cashOut,
-      netCashPosition: cashIn - cashOut,
-      grossMargin: totalSales - totalProductionCost,
-      salesCount: sales.length,
-      productionRuns: production.length,
+      totalSales: k.totalSales,
+      totalCollected: k.totalCollected,
+      totalPurchases: k.totalPurchases,
+      totalExpenses: k.totalExpenses,
+      totalProduced: k.totalProduced,
+      totalProductionCost: k.totalProductionCost,
+      receivables: k.receivables,
+      payables: k.payables,
+      finishedStockValue: k.finishedStockValue,
+      cashIn: k.cashIn,
+      cashOut: k.cashOut,
+      bankIn: k.bankIn,
+      bankOut: k.bankOut,
+      netCashPosition: k.netCashPosition,
+      grossMargin: k.grossMargin,
+      salesCount: k.salesCount,
+      productionRuns: k.productionRuns,
     };
 
     const jsonStr = JSON.stringify(kpiData);
-    console.log('[WidgetSync] KPI data:', jsonStr);
 
     await WidgetPlugin.syncKpis({ data: jsonStr });
-    console.log('[WidgetSync] SUCCESS — pushed to native widgets');
+
   } catch (err) {
     console.error('[WidgetSync] FAILED:', err);
   }
@@ -82,7 +50,7 @@ async function syncWidgetData() {
 
 /**
  * WidgetSync — invisible React component.
- * Runs the sync on mount and every 60 seconds while the app is open.
+ * Runs on mount, a few seconds after any data change, and every 5 minutes.
  */
 export default function WidgetSync() {
   const intervalRef = useRef(null);
@@ -93,13 +61,20 @@ export default function WidgetSync() {
       syncWidgetData();
     }, 2000);
 
-    // Then run every 60 seconds while app is open
+    // Refresh a few seconds after any data change, plus a slow safety interval.
+    let debounce = null;
+    const unsubscribe = onDataChanged(() => {
+      clearTimeout(debounce);
+      debounce = setTimeout(syncWidgetData, 3000);
+    });
     intervalRef.current = setInterval(() => {
       syncWidgetData();
-    }, 60000);
+    }, 5 * 60 * 1000);
 
     return () => {
       clearTimeout(timeout);
+      clearTimeout(debounce);
+      unsubscribe();
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);

@@ -10,3 +10,17 @@ android/.idea/
 android/captures/
 .env
 .env.local
+
+# Real business data backups — never commit
+BrickERP_Backup_*.json
+BrickERP_*.json
+apk/
+.checkpoints/
+# Real business data bundled into the New app APK — never commit
+src/v3/seed/
+FactoryBook_*.json
+
+# Local tooling and private files (not app code)
+.claude/skills/
+Nanna_*.docx
+design/brick-icons/check-out/

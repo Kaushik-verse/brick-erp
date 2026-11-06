@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Zap, Factory, AlertTriangle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Factory, AlertTriangle } from 'lucide-react';
 import BottomSheet from '../../core/ui/BottomSheet';
 import GlassButton from '../../core/ui/GlassButton';
 import { GlassInput, GlassSelect } from '../../core/ui/GlassFormControls';
@@ -7,11 +7,13 @@ import {
   computeMaterialRequirement,
   checkInventorySufficiency,
   recordProduction,
+  updateProduction,
+  getLabourPerBrick,
 } from '../../core/db/recipeEngine';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../core/db/schema';
 import { useUIStore } from '../../core/store/uiStore';
-import { todayISO, formatNumber } from '../../core/utils/format';
+import { todayISO, formatNumber, formatINR } from '../../core/utils/format';
 import { hapticTap } from '../../core/utils/nativeFileBridge';
 
 export default function AddProductionSheet({ open, onClose, editRun }) {
@@ -24,18 +26,24 @@ export default function AddProductionSheet({ open, onClose, editRun }) {
   const [shortfalls, setShortfalls] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [labourRate, setLabourRate] = useState(0);
 
   useEffect(() => {
     if (open && editRun) {
       setDate(editRun.date);
       setBrickSize(editRun.brickSize);
       setQuantity(String(editRun.quantity));
+      setError('');
     } else if (open && !editRun) {
       setDate(todayISO());
       setQuantity('');
       setError('');
     }
   }, [open, editRun]);
+
+  useEffect(() => {
+    getLabourPerBrick(brickSize).then(setLabourRate).catch(() => setLabourRate(0));
+  }, [brickSize]);
 
   const products = useLiveQuery(() => db.finishedStock.toArray(), [], []);
   const materials = useLiveQuery(() => db.rawMaterials.toArray(), [], []);
@@ -50,7 +58,12 @@ export default function AddProductionSheet({ open, onClose, editRun }) {
         if (active) setRequirement(req);
       });
       checkInventorySufficiency(brickSize, qtyNum).then((sf) => {
-        if (active) setShortfalls(sf);
+        if (!active) return;
+        // When editing, the old run's materials will be returned first.
+        const oldUsed = editRun?.materialsUsed?.materialsRequired || {};
+        setShortfalls(
+          sf.filter((s) => s.needed > s.available + (Number(oldUsed[s.materialId]) || 0) + 1e-9)
+        );
       });
     } else {
       setRequirement(null);
@@ -59,7 +72,15 @@ export default function AddProductionSheet({ open, onClose, editRun }) {
     return () => {
       active = false;
     };
-  }, [brickSize, qtyNum]);
+  }, [brickSize, qtyNum, editRun]);
+
+  const estimatedMaterialCost = requirement
+    ? Object.entries(requirement.materialsRequired || {}).reduce(
+        (sum, [matId, qty]) => sum + qty * (materialsById[matId]?.avgRate || 0),
+        0
+      )
+    : 0;
+  const estimatedTotal = estimatedMaterialCost + labourRate * qtyNum;
 
   const resetForm = () => {
     setQuantity('');
@@ -75,16 +96,15 @@ export default function AddProductionSheet({ open, onClose, editRun }) {
     setSubmitting(true);
     try {
       if (editRun) {
-        const { deleteProductionBatch } = await import('../../core/db/ledgerEngine');
-        await deleteProductionBatch(editRun.id);
+        await updateProduction(editRun.id, { date, brickSize, quantity: qtyNum });
+      } else {
+        await recordProduction({
+          date,
+          brickSize,
+          quantity: qtyNum,
+          allowOverdraw: false, // Strict block on overdraw
+        });
       }
-      
-      const result = await recordProduction({
-        date,
-        brickSize,
-        quantity: qtyNum,
-        allowOverdraw: false, // Strict block on overdraw
-      });
       await hapticTap();
       pushToast(editRun ? 'Production updated' : `Logged ${qtyNum} ${brickSize} bricks`, 'success');
       resetForm();
@@ -97,7 +117,7 @@ export default function AddProductionSheet({ open, onClose, editRun }) {
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Log Production">
+    <BottomSheet open={open} onClose={onClose} title={editRun ? 'Edit Production' : 'Log Production'}>
       <div className="space-y-4">
         <GlassInput
           label="Date"
@@ -124,10 +144,22 @@ export default function AddProductionSheet({ open, onClose, editRun }) {
           type="number"
           inputMode="numeric"
           placeholder="e.g. 5000"
+          min="0"
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
         />
-
+        <div className="flex gap-2 -mt-1">
+          {[1000, 2000, 5000, 10000].map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setQuantity(String(n))}
+              className="flex-1 h-9 rounded-xl glass-surface-light text-xs font-semibold text-clay-300 touch-manipulation active:scale-95 transition-transform"
+            >
+              {formatNumber(n)}
+            </button>
+          ))}
+        </div>
 
         {requirement && (
           <div className="glass-surface-light rounded-2xl p-3.5">
@@ -135,7 +167,7 @@ export default function AddProductionSheet({ open, onClose, editRun }) {
               <Factory size={15} className="text-clay-300" />
               <span className="text-sm font-semibold text-clay-100">Materials Required</span>
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
               {Object.entries(requirement.materialsRequired || {}).map(([matId, qty]) => {
                 const mat = materialsById[matId];
                 const unit = mat?.unit || 'kg';
@@ -151,6 +183,22 @@ export default function AddProductionSheet({ open, onClose, editRun }) {
                   />
                 );
               })}
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-white/5 grid grid-cols-3 gap-2 text-xs">
+              <div>
+                <p className="text-clay-500">Material</p>
+                <p className="figure text-clay-200 font-semibold">{formatINR(estimatedMaterialCost)}</p>
+              </div>
+              <div>
+                <p className="text-clay-500">Labour</p>
+                <p className="figure text-clay-200 font-semibold">{formatINR(labourRate * qtyNum)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-clay-500">Per brick</p>
+                <p className="figure text-ember-400 font-semibold">
+                  ₹{qtyNum > 0 ? (estimatedTotal / qtyNum).toFixed(2) : '0.00'}
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -189,7 +237,7 @@ export default function AddProductionSheet({ open, onClose, editRun }) {
           disabled={submitting || !qtyNum || shortfalls.length > 0}
           icon={Factory}
         >
-          {submitting ? 'Recording…' : 'Record Production'}
+          {submitting ? 'Saving…' : editRun ? 'Update Production' : 'Record Production'}
         </GlassButton>
       </div>
     </BottomSheet>

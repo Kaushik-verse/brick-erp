@@ -103,25 +103,29 @@ export async function checkInventorySufficiency(brickSize, quantity) {
  * @param {number} params.quantity
  * @param {boolean} [params.allowOverdraw] - if true, allows negative stock (manual override)
  */
+/** Default labour cost per brick, used when a recipe has no labour rate set. */
+export function defaultLabourPerBrick(brickSize) {
+  if (brickSize === '4-inch' || brickSize === '8-inch') return 3.5;
+  if (brickSize === '9-inch') return 3.8;
+  return 0;
+}
+
+export async function getLabourPerBrick(brickSize) {
+  const recipe = await db.recipes.where('brickSize').equals(brickSize).first();
+  const rate = recipe?.labourPerBrick;
+  return rate !== undefined && rate !== null && rate !== '' ? Number(rate) || 0 : defaultLabourPerBrick(brickSize);
+}
+
 export async function recordProduction({
   date,
   brickSize,
   quantity,
   allowOverdraw = false,
+  id: existingId,
+  createdAt,
 }) {
   if (!quantity || quantity <= 0) {
     throw new Error('Production quantity must be greater than zero.');
-  }
-
-  const req = await computeMaterialRequirement(brickSize, quantity);
-
-  if (!allowOverdraw) {
-    const shortfalls = await checkInventorySufficiency(brickSize, quantity);
-    if (shortfalls.length > 0) {
-      const err = new Error('Insufficient raw material stock for this production run.');
-      err.shortfalls = shortfalls;
-      throw err;
-    }
   }
 
   return db.transaction(
@@ -129,7 +133,20 @@ export async function recordProduction({
     db.rawMaterials,
     db.finishedStock,
     db.productionLog,
+    db.recipes,
     async () => {
+      const req = await computeMaterialRequirement(brickSize, quantity);
+
+      // Checked inside the transaction so the stock can't change in between.
+      if (!allowOverdraw) {
+        const shortfalls = await checkInventorySufficiency(brickSize, quantity);
+        if (shortfalls.length > 0) {
+          const err = new Error('Insufficient raw material stock for this production run.');
+          err.shortfalls = shortfalls;
+          throw err;
+        }
+      }
+
       // 1. Deduct raw materials
       const materials = await db.rawMaterials.toArray();
       const byId = Object.fromEntries(materials.map((m) => [m.id, m]));
@@ -147,12 +164,7 @@ export async function recordProduction({
       }
 
       // 2. Total + per-brick cost
-      let labourCostPerBrick = 0;
-      if (brickSize === '4-inch' || brickSize === '8-inch') {
-        labourCostPerBrick = 3.50;
-      } else if (brickSize === '9-inch') {
-        labourCostPerBrick = 3.80;
-      }
+      const labourCostPerBrick = await getLabourPerBrick(brickSize);
       const labourCost = round2(labourCostPerBrick * quantity);
 
       const totalCost = round2(materialCost + labourCost);
@@ -173,7 +185,7 @@ export async function recordProduction({
       }
 
       // 4. Write the immutable production log entry
-      const id = await db.productionLog.add({
+      const record = {
         date,
         brickSize,
         quantity,
@@ -182,17 +194,46 @@ export async function recordProduction({
         totalCost,
         costPerBrick,
         materialsUsed: req,
-        createdAt: new Date().toISOString(),
-      });
+        createdAt: createdAt || new Date().toISOString(),
+      };
+      if (existingId) record.id = existingId;
+      const id = await db.productionLog.put(record);
 
       return { id, totalCost, costPerBrick, materialCost, labourCost };
     }
   );
 }
 
-async function getSetting(key, fallback) {
-  const row = await db.settings.where('key').equals(key).first();
-  return row ? Number(row.value) : fallback;
+/**
+ * Edits a production run atomically: the old run is reversed (materials
+ * returned, bricks removed) and the new run recorded in one transaction.
+ * If the new run can't be recorded (e.g. not enough material), nothing
+ * changes.
+ */
+export async function updateProduction(runId, { date, brickSize, quantity }) {
+  return db.transaction('rw', db.rawMaterials, db.finishedStock, db.productionLog, db.recipes, async () => {
+    const old = await db.productionLog.get(runId);
+    if (!old) throw new Error('Production record not found.');
+
+    const stock = await db.finishedStock.where('brickSize').equals(old.brickSize).first();
+    const remaining = (stock?.currentStock || 0) - old.quantity + (brickSize === old.brickSize ? quantity : 0);
+    if (!stock || remaining < 0) {
+      throw new Error('Cannot change this run: those bricks have already been sold.');
+    }
+
+    // Return materials used by the old run.
+    const used = old.materialsUsed?.materialsRequired || {};
+    for (const [matId, qty] of Object.entries(used)) {
+      const mat = await db.rawMaterials.get(Number(matId));
+      if (mat && qty > 0) {
+        await db.rawMaterials.update(mat.id, { currentStock: round2(mat.currentStock + qty) });
+      }
+    }
+    await db.finishedStock.update(stock.id, { currentStock: round2(stock.currentStock - old.quantity) });
+    await db.productionLog.delete(runId);
+
+    return recordProduction({ date, brickSize, quantity, id: runId, createdAt: old.createdAt });
+  });
 }
 
 function round2(n) {

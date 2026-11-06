@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import clsx from 'clsx';
 
 /**
@@ -16,24 +16,41 @@ export default function GlassCard({
   padding = 'p-4',
   light = false,
 }) {
-  const Comp = onClick ? motion.button : motion.div;
+  // Rendered as a div with button semantics (not a <button>) so cards can
+  // safely contain their own buttons (e.g. WhatsApp) — nested <button>s are
+  // invalid HTML and misbehave on Android WebView.
+  const interactiveProps = onClick
+    ? {
+        role: 'button',
+        tabIndex: 0,
+        onClick,
+        onKeyDown: (e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick(e);
+          }
+        },
+      }
+    : {};
 
+  // Performance: the entrance and tap feedback used to be framer-motion springs,
+  // i.e. JavaScript writing styles every frame for every card (330 style writes
+  // when Insights opened). They are now CSS animations on opacity/transform with
+  // the same feel, which the browser runs off the main thread.
   return (
-    <Comp
-      onClick={onClick}
-      initial={animate ? { opacity: 0, y: 10 } : false}
-      animate={animate ? { opacity: 1, y: 0 } : false}
-      transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-      whileTap={onClick ? { scale: 0.98 } : {}}
+    <div
+      {...interactiveProps}
       className={clsx(
         light ? 'glass-surface-light' : 'glass-surface',
         'rounded-2xl',
         padding,
-        onClick && 'text-left w-full touch-manipulation',
+        animate && 'card-enter',
+        onClick && 'card-press text-left w-full touch-manipulation cursor-pointer select-none',
         className
       )}
     >
       {children}
-    </Comp>
+    </div>
   );
 }

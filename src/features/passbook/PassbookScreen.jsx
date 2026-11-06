@@ -1,12 +1,20 @@
 import { useState, useMemo } from 'react';
-import { BookOpen, Search, Filter, Download, ArrowUpRight, ArrowDownRight, Activity, Plus } from 'lucide-react';
+import { Search, Download, Plus, Trash2 } from 'lucide-react';
 import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
 import GlassButton from '../../core/ui/GlassButton';
 import BottomSheet from '../../core/ui/BottomSheet';
-import { GlassInput, GlassToggleGroup } from '../../core/ui/GlassFormControls';
+import { GlassInput } from '../../core/ui/GlassFormControls';
 import { usePassbook } from '../../core/hooks/usePassbook';
-import { formatINR, formatDateDisplay, todayISO } from '../../core/utils/format';
+import {
+  formatINR,
+  formatDateDisplay,
+  formatDateShort,
+  todayISO,
+  addDaysISO,
+  toLocalISOString,
+  channelLabel,
+} from '../../core/utils/format';
 import { db } from '../../core/db/schema';
 import { useUIStore } from '../../core/store/uiStore';
 import { hapticTap, saveAndShareBlob } from '../../core/utils/nativeFileBridge';
@@ -34,27 +42,27 @@ export default function PassbookScreen({ onBack }) {
     let startDate = '1970-01-01';
     let endDate = '2099-12-31';
     
+    // All ranges use LOCAL dates (toISOString() is UTC and shifted every
+    // range by one day in India between midnight and 5:30 AM).
     const today = new Date();
     if (dateRange === 'Today') {
       startDate = todayISO();
       endDate = todayISO();
     } else if (dateRange === 'Yesterday') {
-      const y = new Date(today);
-      y.setDate(y.getDate() - 1);
-      startDate = y.toISOString().slice(0, 10);
+      startDate = addDaysISO(-1);
       endDate = startDate;
     } else if (dateRange === 'This Week') {
-      const w = new Date(today);
-      w.setDate(w.getDate() - w.getDay());
-      startDate = w.toISOString().slice(0, 10);
+      startDate = addDaysISO(-today.getDay());
       endDate = todayISO();
     } else if (dateRange === 'This Month') {
       startDate = todayISO().slice(0, 8) + '01';
-      endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+      endDate = toLocalISOString(new Date(today.getFullYear(), today.getMonth() + 1, 0));
     } else if (dateRange === 'Last Month') {
-      const lm = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      startDate = lm.toISOString().slice(0, 10);
-      endDate = new Date(today.getFullYear(), today.getMonth(), 0).toISOString().slice(0, 10);
+      startDate = toLocalISOString(new Date(today.getFullYear(), today.getMonth() - 1, 1));
+      endDate = toLocalISOString(new Date(today.getFullYear(), today.getMonth(), 0));
+    } else if (dateRange === 'All') {
+      startDate = '0000-01-01';
+      endDate = '9999-12-31';
     } else if (dateRange === 'Custom') {
       startDate = customStart;
       endDate = customEnd;
@@ -65,7 +73,7 @@ export default function PassbookScreen({ onBack }) {
     // 2. Mode Filter
     if (filterMode !== 'all') {
       if (filterMode === 'bank') {
-        result = result.filter(e => e.paymentMode === 'bank' || e.paymentMode === 'upi' || e.paymentMode === 'cheque' || e.paymentMode === 'transfer');
+        result = result.filter(e => ['bank', 'upi', 'cheque', 'transfer'].includes(e.paymentMode));
       } else {
         result = result.filter(e => e.paymentMode === filterMode);
       }
@@ -121,12 +129,19 @@ export default function PassbookScreen({ onBack }) {
   }, [filteredEntries]);
 
   const handleExportCSV = async () => {
-    if (!filteredEntries.length) return;
-    const header = "Date,Type,Party,Description,Mode,Cash In,Cash Out,Bank In,Bank Out,Running Balance,Ref\n";
-    const rows = filteredEntries.map(e => 
-      `"${e.date}","${e.type}","${e.partyName}","${e.description}","${e.paymentMode}",${e.cashIn},${e.cashOut},${e.bankIn},${e.bankOut},${e.runningBalance},"${e.refNo}"`
-    ).join("\n");
-    const blob = new Blob([header + rows], { type: 'text/csv' });
+    if (!filteredEntries.length) {
+      pushToast('Nothing to export for this period', 'info');
+      return;
+    }
+    // Quote every field and escape quotes so names with commas/quotes don't break columns.
+    const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = 'Date,Type,Party,Description,Mode,Cash In,Cash Out,Bank In,Bank Out,Cash Balance,Bank Balance,Total Balance,Ref\n';
+    const rows = [...filteredEntries].reverse().map(e =>
+      [e.date, e.type, e.partyName, e.description, channelLabel(e.paymentMode), e.cashIn, e.cashOut, e.bankIn, e.bankOut, e.runningCash, e.runningBank, e.runningBalance, e.refNo]
+        .map(q).join(',')
+    ).join('\n');
+    // BOM so Excel opens the ₹ and Telugu/Hindi names correctly.
+    const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8' });
     try {
       await saveAndShareBlob(blob, `DayBook_${todayISO()}.csv`, 'text/csv');
       pushToast("Exported to CSV", "success");
@@ -153,7 +168,7 @@ export default function PassbookScreen({ onBack }) {
         {/* Filters */}
         <div className="flex flex-col gap-3">
           <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-            {['Today', 'Yesterday', 'This Week', 'This Month', 'Last Month', 'Custom'].map(d => (
+            {['Today', 'Yesterday', 'This Week', 'This Month', 'Last Month', 'All', 'Custom'].map(d => (
               <button
                 key={d}
                 onClick={() => setDateRange(d)}
@@ -190,7 +205,6 @@ export default function PassbookScreen({ onBack }) {
               <option value="all">All Modes</option>
               <option value="cash">Cash Only</option>
               <option value="bank">Bank/UPI Only</option>
-              <option value="credit">Credit Only</option>
             </select>
           </div>
         </div>
@@ -269,11 +283,11 @@ export default function PassbookScreen({ onBack }) {
                           className="hover:bg-white/5 cursor-pointer transition-colors"
                         >
                           <td className="py-3 px-4 text-[11px] text-clay-400">
-                            {new Date(e.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                            {formatDateShort(e.date)}
                           </td>
                           <td className="py-3 px-4">
                             <p className="font-semibold text-clay-50 truncate max-w-[150px]">{e.partyName}</p>
-                            <p className="text-[9px] text-clay-500 uppercase tracking-wider mt-0.5">{e.paymentMode}</p>
+                            <p className="text-[10px] text-clay-500 mt-0.5 truncate max-w-[150px]">{e.type} · {channelLabel(e.paymentMode)}</p>
                           </td>
                           <td className="py-3 px-4 text-right text-red-400 font-medium">
                             {amountOut > 0 ? formatINR(amountOut) : '-'}
@@ -309,7 +323,7 @@ export default function PassbookScreen({ onBack }) {
              <div className="grid grid-cols-2 gap-y-4 text-sm bg-kiln-800 p-4 rounded-2xl">
                 <div><span className="block text-[10px] text-clay-400 uppercase">Date</span><span className="font-semibold text-clay-50">{formatDateDisplay(selectedEntry.date)}</span></div>
                 <div><span className="block text-[10px] text-clay-400 uppercase">Party</span><span className="font-semibold text-clay-50">{selectedEntry.partyName}</span></div>
-                <div><span className="block text-[10px] text-clay-400 uppercase">Payment Mode</span><span className="font-semibold text-clay-50 capitalize">{selectedEntry.paymentMode}</span></div>
+                <div><span className="block text-[10px] text-clay-400 uppercase">Payment Mode</span><span className="font-semibold text-clay-50">{channelLabel(selectedEntry.paymentMode)}</span></div>
                 <div><span className="block text-[10px] text-clay-400 uppercase">Source</span><span className="font-semibold text-clay-50">{selectedEntry.sourceModule}</span></div>
                 <div className="col-span-2"><span className="block text-[10px] text-clay-400 uppercase">Description</span><span className="font-medium text-clay-300">{selectedEntry.description}</span></div>
                 {selectedEntry.remarks && <div className="col-span-2"><span className="block text-[10px] text-clay-400 uppercase">Remarks</span><span className="font-medium text-clay-300">{selectedEntry.remarks}</span></div>}
@@ -317,8 +331,36 @@ export default function PassbookScreen({ onBack }) {
              </div>
 
              <div className="bg-emerald-500/10 p-3 rounded-xl">
-               <p className="text-xs font-bold text-emerald-400 text-center">Running Balance after transaction: {formatINR(selectedEntry.runningBalance)}</p>
+               <p className="text-xs font-bold text-emerald-400 text-center">
+                 Balance after this entry: Cash {formatINR(selectedEntry.runningCash)} · Bank {formatINR(selectedEntry.runningBank)}
+               </p>
              </div>
+
+             {selectedEntry.manualId && (
+               <GlassButton
+                 variant="ghost"
+                 fullWidth
+                 icon={Trash2}
+                 className="!text-ledger-overdue"
+                 onClick={async () => {
+                   if (!window.confirm(`Delete this ${selectedEntry.type} entry of ${formatINR(selectedEntry.cashIn + selectedEntry.bankIn || selectedEntry.cashOut + selectedEntry.bankOut)}?`)) return;
+                   try {
+                     await db.manualTransactions.delete(selectedEntry.manualId);
+                     pushToast('Entry deleted', 'success');
+                     setSelectedEntry(null);
+                   } catch {
+                     pushToast('Could not delete entry', 'error');
+                   }
+                 }}
+               >
+                 Delete this entry
+               </GlassButton>
+             )}
+             {!selectedEntry.manualId && (
+               <p className="text-[11px] text-clay-500 text-center">
+                 To change this entry, open it from {selectedEntry.sourceModule}.
+               </p>
+             )}
           </div>
         </BottomSheet>
       )}
@@ -356,13 +398,16 @@ function AddManualEntrySheet({ open, onClose }) {
     if (type.includes('Bank') && !type.includes('Transfer')) paymentChannel = 'bank';
     if (type.includes('Transfer')) paymentChannel = 'transfer';
 
+    if (!date) {
+      pushToast("Choose a date", "error"); return;
+    }
     try {
       await db.manualTransactions.add({
         date,
         type,
         amount: amt,
         paymentChannel,
-        note,
+        note: note.trim(),
         createdAt: new Date().toISOString()
       });
       await hapticTap();
@@ -378,10 +423,10 @@ function AddManualEntrySheet({ open, onClose }) {
   return (
     <BottomSheet open={open} onClose={onClose} title="Manual Passbook Entry">
       <div className="space-y-4 pb-4">
-        <GlassInput label="Date" type="date" value={date} onChange={e => setDate(e.target.value)} />
+        <GlassInput label="Date" type="date" value={date} max={todayISO()} onChange={e => setDate(e.target.value)} />
         <div>
           <span className="block text-xs font-medium text-clay-400 mb-1.5 ml-1">Entry Type</span>
-          <select value={type} onChange={e => setType(e.target.value)} className="w-full bg-kiln-800 border border-kiln-700 text-clay-50 rounded-2xl h-12 px-4 outline-none text-sm font-medium">
+          <select value={type} onChange={e => setType(e.target.value)} className="w-full glass-surface-light text-clay-50 rounded-2xl h-12 px-4 outline-none focus:ring-2 focus:ring-ember-500/50 font-medium">
             {types.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>

@@ -23,7 +23,7 @@ export default function AgingAlertsWidget({ onSelectCustomer }) {
       <GlassCard padding="p-4">
         <div className="flex items-center gap-2 text-clay-300">
           <AlertTriangle size={16} className="text-ledger-paid" />
-          <span className="text-sm font-medium">No overdue receivables — books are clean.</span>
+          <span className="text-sm font-medium">No money pending from customers.</span>
         </div>
       </GlassCard>
     );
@@ -39,11 +39,14 @@ export default function AgingAlertsWidget({ onSelectCustomer }) {
         {critical.map((c) => (
           <div
             key={c.id}
+            role="button"
+            tabIndex={0}
             className="py-3 flex justify-between items-center active:bg-white/5 cursor-pointer rounded-lg px-2 -mx-2 transition-colors"
             onClick={() => onSelectCustomer && onSelectCustomer(c.id)}
+            onKeyDown={(e) => e.key === 'Enter' && onSelectCustomer && onSelectCustomer(c.id)}
           >
             <div>
-              <p className="text-sm font-bold text-white truncate max-w-[150px]">
+              <p className="text-sm font-bold text-clay-50 truncate max-w-[180px]">
                 {c.name}
               </p>
               <p className="text-[11px] text-clay-400 mt-0.5 font-medium">
@@ -53,7 +56,7 @@ export default function AgingAlertsWidget({ onSelectCustomer }) {
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-sm font-bold text-ledger-overdue">
-                  ₹{c.outstandingBalance.toLocaleString()}
+                  {formatINR(c.outstandingBalance)}
                 </p>
               </div>
               <ChevronRight size={16} className="text-clay-500" />

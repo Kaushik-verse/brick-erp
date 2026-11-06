@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Fuel,
   Wrench,
@@ -10,6 +10,12 @@ import {
   Tags,
   MapPin,
   Trash2,
+  Pencil,
+  Smartphone,
+  ChevronLeft,
+  ChevronRight,
+  Users,
+  Zap,
 } from 'lucide-react';
 import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
@@ -18,12 +24,15 @@ import BottomSheet from '../../core/ui/BottomSheet';
 import { GlassInput, GlassToggleGroup, GlassTextarea } from '../../core/ui/GlassFormControls';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../core/db/schema';
-import { formatINR, formatDateDisplay, todayISO } from '../../core/utils/format';
+import { formatINR, formatDateDisplay, todayISO, channelLabel, parseISODate } from '../../core/utils/format';
 import { useUIStore } from '../../core/store/uiStore';
 import { hapticTap } from '../../core/utils/nativeFileBridge';
+import FillExpenseSheet from './FillExpenseSheet';
 
 export const EXPENSE_CATEGORIES = [
   { key: 'Diesel/Fuel', icon: Fuel },
+  { key: 'Labour/Wages', icon: Users },
+  { key: 'Electricity', icon: Zap },
   { key: 'Vehicle Maintenance', icon: Wrench },
   { key: 'Machinery Repair Charges', icon: Settings },
   { key: 'General Charges', icon: Tags },
@@ -31,23 +40,37 @@ export const EXPENSE_CATEGORIES = [
   { key: 'Miscellaneous', icon: MoreHorizontal },
 ];
 
-export default function ExpensesScreen() {
+function shiftMonth(ym, delta) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+export default function ExpensesScreen({ onBack, fillMode = false }) {
   const pushToast = useUIStore((s) => s.pushToast);
   const [addOpen, setAddOpen] = useState(false);
+  const [editExpense, setEditExpense] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(todayISO().slice(0, 7)); // 'YYYY-MM'
+  const currentMonth = todayISO().slice(0, 7);
 
   const expenses = useLiveQuery(() => {
     const [y, m] = selectedMonth.split('-');
     const daysInMonth = new Date(Number(y), Number(m), 0).getDate();
     const start = `${selectedMonth}-01`;
     const end = `${selectedMonth}-${String(daysInMonth).padStart(2, '0')}`;
-    return db.expenses.where('date').between(start, end, true, true).reverse().sortBy('date');
+    return db.expenses
+      .where('date')
+      .between(start, end, true, true)
+      .toArray()
+      .then((rows) =>
+        rows.sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''))
+      );
   }, [selectedMonth], []);
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this expense?")) {
+  const handleDelete = async (e) => {
+    if (window.confirm(`Delete ${e.category} expense of ${formatINR(e.amount)} on ${formatDateDisplay(e.date)}?`)) {
       try {
-        await db.expenses.delete(id);
+        await db.expenses.delete(e.id);
         pushToast("Expense deleted successfully", "success");
       } catch (err) {
         pushToast("Error deleting expense", "error");
@@ -56,6 +79,11 @@ export default function ExpensesScreen() {
   };
 
   const monthTotal = (expenses || []).reduce((s, e) => s + e.amount, 0);
+
+  const customCategories = useMemo(() => {
+    const known = new Set(EXPENSE_CATEGORIES.map((c) => c.key));
+    return [...new Set((expenses || []).map((e) => e.category).filter((c) => c && !known.has(c)))];
+  }, [expenses]);
 
   const categoryTotals = useMemo(() => {
     const totals = {};
@@ -66,8 +94,9 @@ export default function ExpensesScreen() {
   }, [expenses]);
 
   return (
-    <div className="pb-32">
+    <div className="pb-32 md:pb-12 md:pt-6">
       <ScreenHeader
+        onBack={onBack}
         eyebrow="Cash Leakage"
         title="Daily Expenses"
         action={
@@ -77,26 +106,49 @@ export default function ExpensesScreen() {
         }
       />
 
-      <div className="px-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <input 
-            type="month" 
-            value={selectedMonth} 
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="bg-slate-100 border-none rounded-lg px-3 py-1.5 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#C65D2E]"
-          />
+      <div className="px-5 md:px-8 space-y-4 max-w-4xl mx-auto">
+        <div className="flex items-center justify-between glass-surface-light rounded-2xl p-1">
+          <button
+            onClick={() => setSelectedMonth((m) => shiftMonth(m, -1))}
+            aria-label="Previous month"
+            className="w-11 h-11 rounded-xl flex items-center justify-center text-clay-300 touch-manipulation active:bg-white/5"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <label className="relative text-sm font-semibold text-clay-50">
+            {parseISODate(`${selectedMonth}-01`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+            <input
+              type="month"
+              value={selectedMonth}
+              max={currentMonth}
+              onChange={(e) => e.target.value && setSelectedMonth(e.target.value)}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+              aria-label="Choose month"
+            />
+          </label>
+          <button
+            onClick={() => setSelectedMonth((m) => shiftMonth(m, 1))}
+            disabled={selectedMonth >= currentMonth}
+            aria-label="Next month"
+            className="w-11 h-11 rounded-xl flex items-center justify-center text-clay-300 touch-manipulation active:bg-white/5 disabled:opacity-30"
+          >
+            <ChevronRight size={18} />
+          </button>
         </div>
 
         <GlassCard padding="p-4" className="bg-gradient-to-br from-ember-700/15 to-kiln-800/30 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <Banknote size={64} />
           </div>
-          <p className="text-xs text-clay-300 uppercase tracking-wide mb-1">Total Expenses ({new Date(selectedMonth + '-01').toLocaleDateString('en-IN', {month:'long', year:'numeric'})})</p>
+          <p className="text-xs text-clay-300 uppercase tracking-wide mb-1">Total Expenses This Month</p>
           <p className="figure text-3xl font-bold text-clay-50">{formatINR(monthTotal)}</p>
+          <p className="text-xs text-clay-400 mt-1">{(expenses || []).length} entries</p>
         </GlassCard>
 
-        <div className="grid grid-cols-2 gap-3">
-          {EXPENSE_CATEGORIES.map(({ key, icon: Icon }) => {
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[...EXPENSE_CATEGORIES, ...customCategories.map((key) => ({ key, icon: Tags }))]
+            .filter(({ key }) => (categoryTotals[key] || 0) > 0 || EXPENSE_CATEGORIES.slice(0, 4).some((c) => c.key === key))
+            .map(({ key, icon: Icon }) => {
             const amt = categoryTotals[key] || 0;
             const pct = monthTotal > 0 ? (amt / monthTotal) * 100 : 0;
             return (
@@ -131,15 +183,24 @@ export default function ExpensesScreen() {
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-clay-100 truncate">{e.category}</p>
                       <p className="text-xs text-clay-500">
-                        {formatDateDisplay(e.date)} · {e.paymentChannel === 'cash' ? 'Cash' : 'Bank'}
+                        {formatDateDisplay(e.date)} · {channelLabel(e.paymentChannel)}
                       </p>
+                      {e.note && <p className="text-xs text-clay-400 truncate">{e.note}</p>}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <p className="figure font-bold text-clay-50">{formatINR(e.amount)}</p>
-                    <button 
-                      onClick={() => handleDelete(e.id)} 
-                      className="text-clay-500 hover:text-ledger-overdue transition-colors p-1"
+                  <div className="flex items-center gap-1 shrink-0">
+                    <p className="figure font-bold text-clay-50 mr-1">{formatINR(e.amount)}</p>
+                    <button
+                      onClick={() => { setEditExpense(e); setAddOpen(true); }}
+                      aria-label="Edit expense"
+                      className="text-clay-400 hover:text-clay-100 transition-colors p-2 touch-manipulation"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(e)}
+                      aria-label="Delete expense"
+                      className="text-clay-500 hover:text-ledger-overdue transition-colors p-2 touch-manipulation"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -149,19 +210,37 @@ export default function ExpensesScreen() {
             })}
             {(expenses || []).length === 0 && (
               <GlassCard padding="p-8" className="text-center">
-                <p className="text-clay-400">No expenses logged yet.</p>
+                <p className="text-clay-400">No expenses in this month.</p>
               </GlassCard>
             )}
           </div>
         </div>
       </div>
 
-      <AddExpenseSheet open={addOpen} onClose={() => setAddOpen(false)} />
+      {fillMode ? (
+        <FillExpenseSheet
+          open={addOpen}
+          editExpense={editExpense}
+          onClose={() => {
+            setAddOpen(false);
+            setEditExpense(null);
+          }}
+        />
+      ) : (
+      <AddExpenseSheet
+        open={addOpen}
+        editExpense={editExpense}
+        onClose={() => {
+          setAddOpen(false);
+          setEditExpense(null);
+        }}
+      />
+      )}
     </div>
   );
 }
 
-function AddExpenseSheet({ open, onClose }) {
+export function AddExpenseSheet({ open, onClose, editExpense }) {
   const pushToast = useUIStore((s) => s.pushToast);
   const [date, setDate] = useState(todayISO());
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0].key);
@@ -179,6 +258,24 @@ function AddExpenseSheet({ open, onClose }) {
     setError('');
   };
 
+  useEffect(() => {
+    if (!open) return;
+    if (editExpense) {
+      const known = EXPENSE_CATEGORIES.some((c) => c.key === editExpense.category);
+      setDate(editExpense.date);
+      setIsCustom(!known);
+      setCategory(known ? editExpense.category : EXPENSE_CATEGORIES[0].key);
+      setCustomCategory(known ? '' : editExpense.category);
+      setAmount(String(editExpense.amount));
+      setPaymentChannel(editExpense.paymentChannel || 'cash');
+      setNote(editExpense.note || '');
+      setError('');
+    } else {
+      setDate(todayISO());
+      resetForm();
+    }
+  }, [open, editExpense]);
+
   const handleSubmit = async () => {
     setError('');
     const amt = Number(amount);
@@ -194,16 +291,26 @@ function AddExpenseSheet({ open, onClose }) {
     
     setSubmitting(true);
     try {
-      await db.expenses.add({
-        date,
-        category: finalCategory,
-        amount: amt,
-        paymentChannel,
-        note: note.trim(),
-        createdAt: new Date().toISOString(),
-      });
+      if (editExpense) {
+        await db.expenses.update(editExpense.id, {
+          date,
+          category: finalCategory,
+          amount: amt,
+          paymentChannel,
+          note: note.trim(),
+        });
+      } else {
+        await db.expenses.add({
+          date,
+          category: finalCategory,
+          amount: amt,
+          paymentChannel,
+          note: note.trim(),
+          createdAt: new Date().toISOString(),
+        });
+      }
       await hapticTap();
-      pushToast(`${category} logged — ${formatINR(amt)}`, 'success');
+      pushToast(`${finalCategory} ${editExpense ? 'updated' : 'logged'} — ${formatINR(amt)}`, 'success');
       resetForm();
       onClose();
     } catch (e) {
@@ -214,7 +321,7 @@ function AddExpenseSheet({ open, onClose }) {
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Add Expense">
+    <BottomSheet open={open} onClose={onClose} title={editExpense ? 'Edit Expense' : 'Add Expense'}>
       <div className="space-y-4">
         <GlassInput
           label="Date"
@@ -284,7 +391,8 @@ function AddExpenseSheet({ open, onClose }) {
           value={paymentChannel}
           onChange={setPaymentChannel}
           options={[
-            { value: 'cash', label: 'Cash-in-Hand', icon: Banknote },
+            { value: 'cash', label: 'Cash', icon: Banknote },
+            { value: 'upi', label: 'UPI', icon: Smartphone },
             { value: 'bank', label: 'Bank', icon: Landmark },
           ]}
         />
@@ -299,7 +407,7 @@ function AddExpenseSheet({ open, onClose }) {
         {error && <p className="text-sm text-ledger-overdue text-center">{error}</p>}
 
         <GlassButton fullWidth onClick={handleSubmit} disabled={submitting}>
-          {submitting ? 'Saving…' : 'Save Expense'}
+          {submitting ? 'Saving…' : editExpense ? 'Update Expense' : 'Save Expense'}
         </GlassButton>
       </div>
     </BottomSheet>

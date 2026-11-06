@@ -4,7 +4,96 @@
 
 :root {
   color-scheme: dark;
+  /* Palette as RGB triplets so Tailwind opacity modifiers keep working and
+     the whole app can switch theme (Classic dark ↔ New light). */
+  --c-kiln-950: 14 11 8;
+  --c-kiln-900: 21 17 13;
+  --c-kiln-800: 29 23 18;
+  --c-kiln-700: 40 32 26;
+  --c-kiln-600: 55 44 35;
+  --c-kiln-500: 74 59 47;
+  --c-ember-400: 255 139 94;
+  --c-ember-500: 242 112 61;
+  --c-ember-600: 217 87 42;
+  --c-ember-700: 179 68 31;
+  --c-ember-glow: 255 122 69;
+  --c-clay-50: 251 247 242;
+  --c-clay-100: 242 233 221;
+  --c-clay-200: 227 211 190;
+  --c-clay-300: 201 173 140;
+  --c-clay-400: 168 139 104;
+  --c-clay-500: 138 114 87;
+  --c-clay-600: 107 88 68;
+  --c-clay-700: 74 61 48;
+  --c-clay-800: 46 38 30;
+  --c-ledger-paid: 95 174 126;
+  --c-ledger-partial: 224 162 59;
+  --c-ledger-overdue: 217 83 79;
+  --c-ledger-credit: 124 143 176;
+  --glass-panel: rgba(242, 233, 221, 0.08);
+  --glass-border: rgba(242, 233, 221, 0.10);
 }
+
+/* ---- New design: light, high-contrast theme (readable in sunlight) ---- */
+.theme-light {
+  color-scheme: light;
+  --c-kiln-950: 236 229 219;
+  --c-kiln-900: 247 243 237;
+  --c-kiln-800: 255 255 255;
+  --c-kiln-700: 240 233 224;
+  --c-kiln-600: 226 216 204;
+  --c-kiln-500: 206 193 178;
+  --c-ember-400: 194 77 30;
+  --c-ember-500: 222 98 44;
+  --c-ember-600: 196 78 30;
+  --c-ember-700: 160 60 22;
+  --c-ember-glow: 222 98 44;
+  --c-clay-50: 28 23 18;
+  --c-clay-100: 38 31 25;
+  --c-clay-200: 62 52 43;
+  --c-clay-300: 92 79 67;
+  --c-clay-400: 112 98 85;
+  --c-clay-500: 138 124 110;
+  --c-clay-600: 170 158 145;
+  --c-clay-700: 214 205 194;
+  --c-clay-800: 236 230 222;
+  --c-ledger-paid: 30 135 80;
+  --c-ledger-partial: 178 112 18;
+  --c-ledger-overdue: 196 52 44;
+  --c-ledger-credit: 62 96 150;
+  --glass-panel: rgba(60, 40, 20, 0.05);
+  --glass-border: rgba(60, 40, 20, 0.12);
+}
+.theme-light body {
+  background: #F7F3ED;
+  color: rgb(28 23 18);
+}
+.theme-light .glass-surface {
+  background: #FFFFFF;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(60, 40, 20, 0.08);
+  box-shadow: 0 1px 2px rgba(60, 40, 20, 0.06), 0 6px 20px -8px rgba(60, 40, 20, 0.14);
+}
+.theme-light .glass-surface-light {
+  background: #F3EDE5;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(60, 40, 20, 0.08);
+}
+.theme-light .sheet-surface {
+  background: #FFFFFF;
+  box-shadow: 0 -12px 40px -8px rgba(60, 40, 20, 0.25);
+}
+.theme-light .ember-text-glow { text-shadow: none; }
+.theme-light .shadow-ember-glow { box-shadow: 0 6px 16px -6px rgba(222, 98, 44, 0.55); }
+/* Hairlines written for the dark theme (white at low opacity) */
+.theme-light .border-white\/5,
+.theme-light .border-white\/10 { border-color: rgba(60, 40, 20, 0.10); }
+.theme-light .divide-white\/5 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(60, 40, 20, 0.08); }
+.theme-light .bg-white\/5 { background-color: rgba(60, 40, 20, 0.04); }
+.theme-light .bg-kiln-950\/70 { background-color: rgba(30, 22, 15, 0.45); }
+.theme-light input[type='date'], .theme-light input[type='month'] { color-scheme: light; }
 
 * {
   -webkit-tap-highlight-color: transparent;
@@ -19,7 +108,7 @@ html, body {
 }
 
 body {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', 'Noto Sans Telugu', system-ui, sans-serif;
   background: radial-gradient(120% 90% at 50% -10%, #2A1E14 0%, #15110D 45%, #0E0B08 100%);
   color: #F2E9DD;
   -webkit-font-smoothing: antialiased;
@@ -38,6 +127,13 @@ body {
   box-shadow:
     0 8px 32px -4px rgba(0,0,0,0.45),
     inset 0 1px 0 0 rgba(255,255,255,0.06);
+}
+
+.sheet-surface {
+  background: rgba(29, 23, 18, 0.97);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  box-shadow: 0 -16px 48px -8px rgba(0,0,0,0.6), inset 0 1px 0 0 rgba(255,255,255,0.06);
 }
 
 .glass-surface-light {
@@ -84,3 +180,74 @@ input, select, textarea {
 ::selection {
   background: rgba(242, 112, 61, 0.35);
 }
+
+/* Native date/month pickers: match the dark theme */
+input[type='date'], input[type='month'] {
+  color-scheme: dark;
+}
+.theme-light input[type='date'], .theme-light input[type='month'] { color-scheme: light; }
+
+/* Visible keyboard focus for accessibility, without tap outlines */
+button:focus-visible, [role='button']:focus-visible, a:focus-visible {
+  outline: 2px solid rgba(242, 112, 61, 0.7);
+  outline-offset: 2px;
+}
+
+/* Hide number-input spinners — they are too small to tap and cause mistakes */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] { -moz-appearance: textfield; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Text on orange/green action buttons must stay white in the light theme */
+.theme-light .from-ember-500,
+.theme-light .bg-ember-500 { color: #fff; }
+.theme-light .from-ember-500 svg { color: #fff; }
+
+/* Telugu: slightly larger line height so stacked vowel signs don't clip */
+:lang(te) body, :lang(te) button, :lang(te) p, :lang(te) span { line-height: 1.55; }
+:lang(te) .font-display { font-family: 'Noto Sans Telugu', 'Fraunces', serif; font-weight: 700; }
+
+/* ---- 3D clay icons (Kubai method) ---- */
+.k3d svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.k3d .ol { fill: none; stroke-width: 2; }
+.k3d .ln { fill: none; stroke-width: 1.6; stroke-linecap: round; }
+
+/* ---- Navigation icon pop when a tab becomes active ---- */
+@keyframes nav-pop { 0% { transform: scale(.82); } 55% { transform: scale(1.12); } 100% { transform: scale(1); } }
+.nav-pop { animation: nav-pop .42s cubic-bezier(.22, 1, .36, 1); transform-origin: center; }
+
+/* ---- Screen + card entrances (CSS, so they run on the compositor) ----
+   Same motion as the old framer-motion versions: screen fades/slides 8px in
+   150 ms; cards rise 10px with a spring-like ease. `backwards` fill means no
+   transform is left on the element once the animation ends. */
+@keyframes screen-enter { from { opacity: 0; transform: translateY(8px); } }
+.screen-enter { animation: screen-enter .15s ease-out backwards; }
+@keyframes card-enter { from { opacity: 0; transform: translateY(10px); } }
+.card-enter { animation: card-enter .42s cubic-bezier(.22, 1, .36, 1) backwards; }
+@keyframes header-enter { from { opacity: 0; transform: translateY(-6px); } }
+.header-enter { animation: header-enter .35s ease-out backwards; }
+.card-press { transition: transform .12s ease-out; }
+.card-press:active { transform: scale(.98); }
+@media (prefers-reduced-motion: reduce) { .screen-enter, .card-enter, .header-enter { animation: none; } .card-press:active { transform: none; } }
+
+/* ---- Cards lift a little under the pointer (desktop) ---- */
+@media (hover: hover) {
+  .lift { transition: transform .22s cubic-bezier(.22, 1, .36, 1), box-shadow .22s cubic-bezier(.22, 1, .36, 1); }
+  .lift:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(60, 40, 20, .06), 0 14px 28px -12px rgba(60, 40, 20, .28); }
+}
+@media (prefers-reduced-motion: reduce) { .nav-pop { animation: none; } .lift:hover { transform: none; } }
+
+/* ---- Bottom bar: 3D icons, the unselected ones softly greyed ---- */
+.nav3d { display: inline-flex; transition: filter .3s ease, opacity .3s ease, transform .3s cubic-bezier(.22, 1, .36, 1); filter: grayscale(.55) saturate(.75); opacity: .85; }
+.nav3d-on { filter: none; opacity: 1; transform: translateY(-1px) scale(1.06); animation: nav-pop .42s cubic-bezier(.22, 1, .36, 1); }
+@media (prefers-reduced-motion: reduce) { .nav3d, .nav3d-on { transition: none; animation: none; transform: none; } }

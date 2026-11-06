@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, Banknote, Landmark, UserPlus } from 'lucide-react';
+import { Package, Banknote, Landmark, UserPlus, Smartphone } from 'lucide-react';
 import BottomSheet from '../../core/ui/BottomSheet';
 import GlassButton from '../../core/ui/GlassButton';
 import { GlassInput, GlassSelect, GlassToggleGroup } from '../../core/ui/GlassFormControls';
@@ -7,7 +7,7 @@ import { recordPurchase } from '../../core/db/ledgerEngine';
 import { useSuppliers, useRawMaterials } from '../../core/hooks/useDexieHooks';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useUIStore } from '../../core/store/uiStore';
-import { todayISO } from '../../core/utils/format';
+import { todayISO, formatINR } from '../../core/utils/format';
 import { hapticTap } from '../../core/utils/nativeFileBridge';
 import { db } from '../../core/db/schema';
 
@@ -34,24 +34,37 @@ export default function AddPurchaseSheet({ open, onClose }) {
 
   const units = useLiveQuery(() => db.units.toArray(), [], []);
 
+  const selectedMaterial = (rawMaterials || []).find((m) => String(m.id) === String(materialId));
+  const baseUnit = (selectedMaterial?.unit || 'kg').toLowerCase();
+
+  // Only units that convert into the material's own stock unit. Previously
+  // "Ton" (×1000) was offered and pre-selected for every material, so a
+  // Quarry Dust purchase of 6 loads was saved as 6,000 loads.
+  const compatibleUnits = (units || []).filter((u) => {
+    if (u.isActive === 0) return false;
+    const sym = (u.symbol || '').toLowerCase();
+    const bu = (u.baseUnit || '').toLowerCase();
+    return sym === baseUnit || bu === baseUnit;
+  });
+
   useEffect(() => {
-    if (!units || units.length === 0) return;
-    
-    // Default to Ton if no unit is set
-    if (!unitId) {
-      const ton = units.find(u => u.symbol.toLowerCase() === 'ton' || u.name.toLowerCase() === 'ton');
-      if (ton) setUnitId(String(ton.id));
-      else setUnitId(String(units[0].id));
-    }
-  }, [units, unitId, materialId, rawMaterials]);
+    if (!compatibleUnits.length) return;
+    if (compatibleUnits.some((u) => String(u.id) === String(unitId))) return;
+    // kg materials (fly ash, lime, gypsum) are bought in Tons; others in their own unit.
+    const preferred =
+      (baseUnit === 'kg' && compatibleUnits.find((u) => (u.symbol || '').toLowerCase() === 'ton')) ||
+      compatibleUnits.find((u) => (u.symbol || '').toLowerCase() === baseUnit) ||
+      compatibleUnits[0];
+    setUnitId(String(preferred.id));
+  }, [compatibleUnits, unitId, baseUnit]);
 
   const qtyNum = Number(quantity) || 0;
   const rateNum = Number(rate) || 0;
-  const totalAmount = qtyNum * rateNum;
+  const totalAmount = Math.round(qtyNum * rateNum * 100) / 100;
   const paidNum = Number(amountPaid) || 0;
   const balanceDue = Math.max(totalAmount - paidNum, 0);
 
-  const activeUnit = units?.find(u => String(u.id) === String(unitId));
+  const activeUnit = compatibleUnits.find(u => String(u.id) === String(unitId));
   const conversionFactor = activeUnit ? activeUnit.conversionFactor : 1;
   const qtyNumBase = qtyNum * conversionFactor;
   const rateNumBase = qtyNumBase > 0 ? totalAmount / qtyNumBase : 0;
@@ -71,7 +84,7 @@ export default function AddPurchaseSheet({ open, onClose }) {
       outstandingBalance: 0,
       createdAt: new Date().toISOString(),
     });
-    setSupplierId(id);
+    setSupplierId(String(id));
     setShowNewSupplier(false);
     setNewSupplierName('');
     setNewSupplierPhone('');
@@ -110,6 +123,10 @@ export default function AddPurchaseSheet({ open, onClose }) {
       setError('Enter a valid rate.');
       return;
     }
+    if (paidNum < 0 || paidNum > totalAmount + 0.009) {
+      setError(`Amount paid must be between ₹0 and the bill total (${formatINR(totalAmount, { decimals: 2 })}).`);
+      return;
+    }
     setSubmitting(true);
     try {
       await recordPurchase({
@@ -119,7 +136,7 @@ export default function AddPurchaseSheet({ open, onClose }) {
         quantity: qtyNumBase,
         rate: rateNumBase,
         amountPaid: paidNum,
-        paymentChannel,
+        paymentChannel: paidNum > 0 ? paymentChannel : 'credit',
       });
       await hapticTap();
       pushToast('Purchase recorded successfully', 'success');
@@ -233,7 +250,7 @@ export default function AddPurchaseSheet({ open, onClose }) {
             onChange={(e) => setQuantity(e.target.value)}
           />
           <GlassSelect label="Unit" value={unitId} onChange={(e) => setUnitId(e.target.value)}>
-            {(units || []).map(u => (
+            {(compatibleUnits.length ? compatibleUnits : [{ id: '', name: selectedMaterial?.unit || 'Unit' }]).map(u => (
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}
           </GlassSelect>
@@ -257,15 +274,37 @@ export default function AddPurchaseSheet({ open, onClose }) {
           onChange={(e) => setAmountPaid(e.target.value)}
         />
 
-        <GlassToggleGroup
-          label="Payment Channel"
-          value={paymentChannel}
-          onChange={setPaymentChannel}
-          options={[
-            { value: 'cash', label: 'Cash', icon: Banknote },
-            { value: 'bank', label: 'Bank', icon: Landmark },
-          ]}
-        />
+        {totalAmount > 0 && (
+          <div className="flex gap-2 -mt-2">
+            <button
+              type="button"
+              onClick={() => setAmountPaid(String(totalAmount))}
+              className="flex-1 h-9 rounded-xl glass-surface-light text-xs font-semibold text-ledger-paid touch-manipulation"
+            >
+              Paid in full
+            </button>
+            <button
+              type="button"
+              onClick={() => setAmountPaid('')}
+              className="flex-1 h-9 rounded-xl glass-surface-light text-xs font-semibold text-ledger-credit touch-manipulation"
+            >
+              On credit
+            </button>
+          </div>
+        )}
+
+        {paidNum > 0 && (
+          <GlassToggleGroup
+            label="Paid By"
+            value={paymentChannel}
+            onChange={setPaymentChannel}
+            options={[
+              { value: 'cash', label: 'Cash', icon: Banknote },
+              { value: 'upi', label: 'UPI', icon: Smartphone },
+              { value: 'bank', label: 'Bank', icon: Landmark },
+            ]}
+          />
+        )}
 
         {totalAmount > 0 && (
           <div className="glass-surface-light rounded-2xl p-3.5 flex justify-between items-center">

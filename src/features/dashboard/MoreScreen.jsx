@@ -1,25 +1,44 @@
-import { ChevronRight, Fuel, FileStack, CloudUpload, Settings, BookOpen } from 'lucide-react';
+import { ChevronRight, Fuel, FileStack, ShieldCheck, Settings, BookOpen, FileText, FlaskConical, Database } from 'lucide-react';
 import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
 
-const MENU_ITEMS = [
-  { key: 'passbook', label: 'Cash & Bank Passbook', desc: 'Unified Day Book and ledger', icon: BookOpen },
-  { key: 'expenses', label: 'Daily Expenses', desc: 'Diesel, maintenance, labour advances', icon: Fuel },
-  { key: 'invoice-settings', label: 'Invoice Configuration', desc: 'Design, taxes, extra charges', icon: FileStack },
-  { key: 'master-settings', label: 'Master Data', desc: 'Manage products and materials', icon: Settings },
-  { key: 'recipe-settings', label: 'Brick Recipes', desc: 'Manage production recipes', icon: Settings },
-  { key: 'settings', label: 'Factory Settings', desc: 'Rates and factory profile', icon: Settings },
-  { key: 'documents', label: 'Document Hub', desc: 'Invoices, statements, EOD summary', icon: FileStack },
-  { key: 'drive-sync', label: 'Google Drive Backup', desc: 'Sync ledger to appDataFolder', icon: CloudUpload },
+const MENU_GROUPS = [
+  {
+    title: 'Daily work',
+    items: [
+      { key: 'invoice-builder', label: 'Create Invoice', desc: 'Multi-product bill with PDF & WhatsApp', icon: FileText },
+      { key: 'passbook', label: 'Cash & Bank Day Book', desc: 'Every rupee in and out, with balances', icon: BookOpen },
+      { key: 'expenses', label: 'Daily Expenses', desc: 'Diesel, labour, repairs, electricity', icon: Fuel },
+      { key: 'documents', label: 'Reports', desc: 'Day summary, Excel ledgers', icon: FileStack },
+    ],
+  },
+  {
+    title: 'Safety',
+    items: [
+      { key: 'drive-sync', label: 'Backup & Restore', desc: 'Automatic phone + Google Drive backups', icon: ShieldCheck },
+    ],
+  },
+  {
+    title: 'Setup',
+    items: [
+      { key: 'settings', label: 'Factory Settings', desc: 'Factory profile, bank details, prices', icon: Settings },
+      { key: 'master-settings', label: 'Products & Materials', desc: 'Add or hide products, materials, units', icon: Database },
+      { key: 'recipe-settings', label: 'Brick Recipes', desc: 'Materials and labour cost per brick', icon: FlaskConical },
+      { key: 'invoice-settings', label: 'Invoice Design', desc: 'What appears on printed invoices', icon: FileStack },
+    ],
+  },
 ];
 
 export default function MoreScreen({ onNavigate }) {
   return (
-    <div className="pb-32">
+    <div className="pb-32 md:pb-12 md:pt-6">
       <ScreenHeader eyebrow="Workspace" title="More" />
 
-      <div className="px-5 space-y-3">
-        {MENU_ITEMS.map((item) => (
+      <div className="px-5 md:px-8 space-y-6 max-w-3xl mx-auto">
+        {MENU_GROUPS.map((group) => (
+          <section key={group.title} className="space-y-2.5">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-clay-500 px-1">{group.title}</h2>
+        {group.items.map((item) => (
           <GlassCard
             key={item.key}
             padding="p-4"
@@ -38,6 +57,9 @@ export default function MoreScreen({ onNavigate }) {
             <ChevronRight size={18} className="text-clay-500 shrink-0" />
           </GlassCard>
         ))}
+          </section>
+        ))}
+        <p className="text-center text-[11px] text-clay-500 pt-2">Brick ERP · v{__APP_VERSION__}</p>
       </div>
     </div>
   );

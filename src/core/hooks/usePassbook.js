@@ -1,5 +1,16 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/schema';
+import { isBankChannel, isCashChannel } from '../utils/format';
+
+function saleDescription(s) {
+  if (Array.isArray(s.items) && s.items.length) {
+    const parts = s.items
+      .filter((it) => it.description)
+      .map((it) => `${Number(it.quantity || 0).toLocaleString('en-IN')} × ${it.description}`);
+    return parts.length ? parts.join(', ') : 'Invoice sale';
+  }
+  return `${Number(s.quantity || 0).toLocaleString('en-IN')} × ${s.brickSize || 'bricks'}`;
+}
 
 /**
  * usePassbook: Dynamically aggregates all financial records into a single sorted chronological ledger.
@@ -31,8 +42,10 @@ export function usePassbook() {
 
     const entries = [];
 
-    const isBank = (mode) => mode === 'bank' || mode === 'upi' || mode === 'cheque';
-    const isCash = (mode) => mode === 'cash';
+    const isBank = isBankChannel;
+    const isCash = isCashChannel;
+    const materials = await db.rawMaterials.toArray();
+    const materialMap = Object.fromEntries(materials.map((m) => [m.id, m]));
 
     // 1. Sales
     for (const s of sales) {
@@ -46,14 +59,15 @@ export function usePassbook() {
           type: 'Sale',
           sourceModule: 'Sales',
           partyName: customerMap[s.customerId] || 'Unknown Customer',
-          description: `Sale of ${s.quantity} units`,
+          description: saleDescription(s),
           paymentMode: s.paymentChannel || 'credit',
           cashIn: cIn,
           cashOut: 0,
           bankIn: bIn,
           bankOut: 0,
           remarks: `Total Bill: ₹${s.totalAmount}`,
-          refNo: `INV-${s.id}`
+          refNo: s.invoiceNumber || `INV-${s.id}`,
+          sourceId: s.id
         });
       }
     }
@@ -70,7 +84,7 @@ export function usePassbook() {
           type: 'Purchase',
           sourceModule: 'Purchases',
           partyName: supplierMap[p.supplierId] || 'Unknown Supplier',
-          description: `Purchase of ${p.quantity} units`,
+          description: `Purchase of ${materialMap[p.materialId]?.name || 'material'}`,
           paymentMode: p.paymentChannel || 'credit',
           cashIn: 0,
           cashOut: cOut,
@@ -99,7 +113,7 @@ export function usePassbook() {
         cashOut: 0,
         bankIn: bIn,
         bankOut: 0,
-        remarks: '',
+        remarks: c.remarks || '',
         refNo: `REC-${c.id}`
       });
     }
@@ -121,7 +135,7 @@ export function usePassbook() {
         cashOut: cOut,
         bankIn: 0,
         bankOut: bOut,
-        remarks: '',
+        remarks: sp.remarks || '',
         refNo: `PAY-${sp.id}`
       });
     }
@@ -185,7 +199,8 @@ export function usePassbook() {
         bankIn: bIn,
         bankOut: bOut,
         remarks: mt.note || '',
-        refNo: `MAN-${mt.id}`
+        refNo: `MAN-${mt.id}`,
+        manualId: mt.id
       });
     }
 
@@ -194,7 +209,7 @@ export function usePassbook() {
       if (a.date !== b.date) {
         return a.date.localeCompare(b.date);
       }
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return (a.createdAt || '').localeCompare(b.createdAt || '');
     });
 
     // Compute running balances

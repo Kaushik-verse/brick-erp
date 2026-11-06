@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Plus, Settings2 } from 'lucide-react';
+import { Plus, Settings2, EyeOff, Eye } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
@@ -8,12 +8,22 @@ import { GlassInput } from '../../core/ui/GlassFormControls';
 import { db } from '../../core/db/schema';
 import { useUIStore } from '../../core/store/uiStore';
 
-export default function MasterSettingsScreen({ onBack }) {
+export default function MasterSettingsScreen({ onBack, hideUnits = false }) {
   const pushToast = useUIStore((s) => s.pushToast);
   
-  const materials = useLiveQuery(() => db.rawMaterials.filter(m => m.isActive !== 0).toArray(), []);
-  const products = useLiveQuery(() => db.finishedStock.filter(p => p.isActive !== 0).toArray(), []);
+  const allMaterials = useLiveQuery(() => db.rawMaterials.toArray(), [], []);
+  const allProducts = useLiveQuery(() => db.finishedStock.toArray(), [], []);
   const units = useLiveQuery(() => db.units.filter(u => u.isActive !== 0).toArray(), []);
+  const materials = allMaterials.filter((m) => m.isActive !== 0);
+  const products = allProducts.filter((p) => p.isActive !== 0);
+  const hiddenMaterials = allMaterials.filter((m) => m.isActive === 0);
+  const hiddenProducts = allProducts.filter((p) => p.isActive === 0);
+
+  const setActive = async (table, id, active, label) => {
+    if (!active && !window.confirm(`Hide "${label}"? Past records stay; it just won't appear in new entries. You can show it again later.`)) return;
+    await table.update(id, { isActive: active ? 1 : 0 });
+    pushToast(active ? `${label} shown` : `${label} hidden`, 'success');
+  };
 
   const [newMaterialName, setNewMaterialName] = useState('');
   const [newMaterialUnit, setNewMaterialUnit] = useState('kg');
@@ -26,7 +36,12 @@ export default function MasterSettingsScreen({ onBack }) {
   const [newUnitFactor, setNewUnitFactor] = useState('');
 
   const handleAddMaterial = async () => {
-    if (!newMaterialName) return;
+    const name = newMaterialName.trim();
+    if (!name) return;
+    if (allMaterials.some((m) => m.name.toLowerCase() === name.toLowerCase())) {
+      pushToast(`${name} already exists`, 'error');
+      return;
+    }
     try {
       await db.rawMaterials.add({
         name: newMaterialName.trim(),
@@ -44,7 +59,12 @@ export default function MasterSettingsScreen({ onBack }) {
   };
 
   const handleAddProduct = async () => {
-    if (!newProductName) return;
+    const name = newProductName.trim();
+    if (!name) return;
+    if (allProducts.some((p) => p.brickSize.toLowerCase() === name.toLowerCase())) {
+      pushToast(`${name} already exists`, 'error');
+      return;
+    }
     try {
       await db.finishedStock.add({
         brickSize: newProductName.trim(),
@@ -85,11 +105,7 @@ export default function MasterSettingsScreen({ onBack }) {
       <ScreenHeader
         eyebrow="Configuration"
         title="Master Data"
-        action={
-          <button onClick={onBack} className="w-10 h-10 rounded-full glass-surface-light flex items-center justify-center touch-manipulation">
-            <ArrowLeft size={18} className="text-clay-300" />
-          </button>
-        }
+        onBack={onBack}
       />
 
       <div className="px-5 space-y-4">
@@ -98,10 +114,11 @@ export default function MasterSettingsScreen({ onBack }) {
             <Settings2 size={16} className="text-ember-400" /> Products
           </h3>
           <div className="flex flex-wrap gap-2 mb-3">
-            {(products || []).map(p => (
-              <span key={p.id} className="text-xs bg-glass-panel border border-glass-border rounded-lg px-2 py-1 text-clay-200">
-                {p.brickSize}
-              </span>
+            {products.map(p => (
+              <Chip key={p.id} label={`${p.brickSize} · ₹${p.sellingPrice}`} onHide={() => setActive(db.finishedStock, p.id, false, p.brickSize)} />
+            ))}
+            {hiddenProducts.map(p => (
+              <Chip key={p.id} hidden label={p.brickSize} onShow={() => setActive(db.finishedStock, p.id, true, p.brickSize)} />
             ))}
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -116,10 +133,11 @@ export default function MasterSettingsScreen({ onBack }) {
             <Settings2 size={16} className="text-ember-400" /> Raw Materials
           </h3>
           <div className="flex flex-wrap gap-2 mb-3">
-            {(materials || []).map(m => (
-              <span key={m.id} className="text-xs bg-glass-panel border border-glass-border rounded-lg px-2 py-1 text-clay-200">
-                {m.name} ({m.unit})
-              </span>
+            {materials.map(m => (
+              <Chip key={m.id} label={`${m.name} (${m.unit})`} onHide={() => setActive(db.rawMaterials, m.id, false, m.name)} />
+            ))}
+            {hiddenMaterials.map(m => (
+              <Chip key={m.id} hidden label={m.name} onShow={() => setActive(db.rawMaterials, m.id, true, m.name)} />
             ))}
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -129,6 +147,7 @@ export default function MasterSettingsScreen({ onBack }) {
           <GlassButton size="sm" onClick={handleAddMaterial} icon={Plus}>Add Material</GlassButton>
         </GlassCard>
 
+{!hideUnits && (
         <GlassCard padding="p-4 space-y-3">
           <h3 className="text-sm font-semibold text-clay-100 flex items-center gap-2">
             <Settings2 size={16} className="text-ember-400" /> Units
@@ -147,7 +166,28 @@ export default function MasterSettingsScreen({ onBack }) {
           </div>
           <GlassButton size="sm" onClick={handleAddUnit} icon={Plus}>Add Unit</GlassButton>
         </GlassCard>
+        )}
       </div>
     </div>
+  );
+}
+
+function Chip({ label, hidden, onHide, onShow }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-xs rounded-lg pl-2.5 pr-1 py-1 border ${
+        hidden ? 'border-dashed border-glass-border text-clay-500' : 'bg-glass-panel border-glass-border text-clay-200'
+      }`}
+    >
+      {label}
+      <button
+        type="button"
+        onClick={hidden ? onShow : onHide}
+        aria-label={hidden ? `Show ${label}` : `Hide ${label}`}
+        className="w-7 h-7 rounded-md flex items-center justify-center text-clay-400 touch-manipulation active:bg-white/10"
+      >
+        {hidden ? <Eye size={13} /> : <EyeOff size={13} />}
+      </button>
+    </span>
   );
 }

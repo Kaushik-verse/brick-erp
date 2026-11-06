@@ -6,12 +6,18 @@ import GlassButton from '../../core/ui/GlassButton';
 import { useRawMaterials, useFinishedStock } from '../../core/hooks/useDexieHooks';
 import { formatINR, formatNumber } from '../../core/utils/format';
 import { useUIStore } from '../../core/store/uiStore';
+import StockAdjustSheet from './StockAdjustSheet';
 
 export default function InventoryScreen() {
   const [tab, setTab] = useState('raw'); // 'raw' | 'finished'
   const rawMaterials = useRawMaterials();
   const finishedStock = useFinishedStock();
   const pushToast = useUIStore((s) => s.pushToast);
+  const [adjust, setAdjust] = useState(null); // { item, itemType }
+
+  const activeRaw = (rawMaterials || []).filter((m) => m.isActive !== 0);
+  const activeFinished = (finishedStock || []).filter((f) => f.isActive !== 0);
+  const lowCount = activeRaw.filter((m) => (m.reorderLevel || 0) > 0 && m.currentStock < m.reorderLevel).length;
 
   const rawValue = (rawMaterials || []).reduce((s, m) => s + m.currentStock * m.avgRate, 0);
   const finishedValue = (finishedStock || []).reduce((s, f) => s + f.currentStock * f.costPrice, 0);
@@ -49,10 +55,11 @@ export default function InventoryScreen() {
             <p className="figure text-lg font-bold text-ember-400">{formatINR(finishedValue)}</p>
           </GlassCard>
         </div>
+        <p className="text-[11px] text-clay-500 -mt-2 px-1">Tap any item to correct its stock (opening stock, physical count, breakage).</p>
 
         <div className="flex p-1 rounded-2xl glass-surface-light gap-1 mb-4">
           <TabButton active={tab === 'raw'} onClick={() => setTab('raw')}>
-            Raw Materials
+            Raw Materials{lowCount > 0 ? ` · ${lowCount} low` : ''}
           </TabButton>
           <TabButton active={tab === 'finished'} onClick={() => setTab('finished')}>
             Finished Bricks
@@ -61,15 +68,15 @@ export default function InventoryScreen() {
 
         {tab === 'raw' && (
           <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4">
-            {(rawMaterials || []).map((m) => {
-              const isLow = m.currentStock < m.reorderLevel;
+            {activeRaw.map((m) => {
+              const isLow = (m.reorderLevel || 0) > 0 && m.currentStock < m.reorderLevel;
               return (
-                <GlassCard key={m.id} padding="p-4">
+                <GlassCard key={m.id} padding="p-4" onClick={() => setAdjust({ item: m, itemType: 'raw' })}>
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-semibold text-clay-50">{m.name}</p>
                       <p className="text-xs text-clay-400">
-                        Avg rate ₹{m.unit === 'kg' ? m.avgRate * 1000 : m.avgRate}/{m.unit === 'kg' ? 'Ton' : m.unit}
+                        Avg rate ₹{formatNumber(m.unit === 'kg' ? m.avgRate * 1000 : m.avgRate, 2)}/{m.unit === 'kg' ? 'Ton' : m.unit}
                       </p>
                     </div>
                     <div className="text-right">
@@ -98,8 +105,8 @@ export default function InventoryScreen() {
 
         {tab === 'finished' && (
           <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4">
-            {(finishedStock || []).map((f) => (
-              <GlassCard key={f.id} padding="p-4">
+            {activeFinished.map((f) => (
+              <GlassCard key={f.id} padding="p-4" onClick={() => setAdjust({ item: f, itemType: 'finished' })}>
                 <div className="flex items-center justify-between mb-2.5">
                   <div className="flex items-center gap-2">
                     <Boxes size={18} className="text-ember-400" />
@@ -112,7 +119,7 @@ export default function InventoryScreen() {
                 <div className="grid grid-cols-3 gap-2 pt-2.5 border-t border-white/5">
                   <div>
                     <p className="text-[10px] text-clay-500 uppercase">Cost Price</p>
-                    <p className="figure text-sm font-semibold text-clay-200">₹{f.costPrice}</p>
+                    <p className="figure text-sm font-semibold text-clay-200">₹{(f.costPrice || 0).toFixed(2)}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-clay-500 uppercase">Selling Price</p>
@@ -120,8 +127,8 @@ export default function InventoryScreen() {
                   </div>
                   <div>
                     <p className="text-[10px] text-clay-500 uppercase">Margin</p>
-                    <p className="figure text-sm font-semibold text-ledger-paid">
-                      ₹{(f.sellingPrice - f.costPrice).toFixed(2)}
+                    <p className={`figure text-sm font-semibold ${f.sellingPrice - f.costPrice >= 0 ? 'text-ledger-paid' : 'text-ledger-overdue'}`}>
+                      ₹{((f.sellingPrice || 0) - (f.costPrice || 0)).toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -130,6 +137,13 @@ export default function InventoryScreen() {
           </div>
         )}
       </div>
+
+      <StockAdjustSheet
+        open={!!adjust}
+        item={adjust?.item}
+        itemType={adjust?.itemType}
+        onClose={() => setAdjust(null)}
+      />
     </div>
   );
 }

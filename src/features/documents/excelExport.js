@@ -1,6 +1,8 @@
 import ExcelJS from 'exceljs';
 import { calculateAgingDays } from '../../core/db/ledgerEngine';
 import { saveAndShareBlob } from '../../core/utils/nativeFileBridge';
+import { channelLabel } from '../../core/utils/format';
+import { displayInvoiceNumber } from '../../core/billing/invoiceNumber';
 
 /**
  * excelExport.js
@@ -76,8 +78,9 @@ export async function exportSalesLedgerExcel(sales, customersById) {
 
   sheet.columns = [
     { header: 'Date', key: 'date', width: 12 },
+    { header: 'Invoice No.', key: 'invoiceNo', width: 16 },
     { header: 'Customer', key: 'customer', width: 22 },
-    { header: 'Brick Size', key: 'brickSize', width: 12 },
+    { header: 'Product', key: 'brickSize', width: 18 },
     { header: 'Quantity', key: 'quantity', width: 11 },
     { header: 'Rate (₹)', key: 'rate', width: 11 },
     { header: 'Total Amount', key: 'totalAmount', width: 14 },
@@ -93,16 +96,17 @@ export async function exportSalesLedgerExcel(sales, customersById) {
     const aging = calculateAgingDays(s.date);
     const row = sheet.addRow({
       date: s.date,
+      invoiceNo: displayInvoiceNumber(s),
       customer: customersById[s.customerId]?.name || 'Unknown',
-      brickSize: s.brickSize || (s.items ? 'Multiple Items' : '-'),
+      brickSize: s.brickSize || (s.items ? s.items.map((it) => it.description).filter(Boolean).join(', ') : '-'),
       quantity: s.quantity || (s.items ? s.items.reduce((sum, it) => sum + (it.quantity || 0), 0) : 0),
       rate: s.rate || (s.items ? '-' : 0),
       totalAmount: s.totalAmount,
       amountPaid: s.amountPaid,
       balanceDue: s.balanceDue,
-      status: s.paymentStatus.toUpperCase(),
+      status: (s.paymentStatus || '').toUpperCase(),
       aging,
-      channel: s.paymentChannel === 'cash' ? 'Cash' : 'Bank',
+      channel: channelLabel(s.paymentChannel),
     });
 
     ['rate', 'totalAmount', 'amountPaid', 'balanceDue'].forEach((key) => {
@@ -121,12 +125,12 @@ export async function exportSalesLedgerExcel(sales, customersById) {
     const dataRowCount = safeSales.length;
     const totalRowIdx = dataRowCount + 2;
 
-    sheet.getCell(`E${totalRowIdx}`).value = 'TOTALS';
-    sheet.getCell(`E${totalRowIdx}`).font = { bold: true };
-    sheet.getCell(`F${totalRowIdx}`).value = { formula: `SUBTOTAL(9,F2:F${dataRowCount + 1})` };
+    sheet.getCell(`F${totalRowIdx}`).value = 'TOTALS';
+    sheet.getCell(`F${totalRowIdx}`).font = { bold: true };
     sheet.getCell(`G${totalRowIdx}`).value = { formula: `SUBTOTAL(9,G2:G${dataRowCount + 1})` };
     sheet.getCell(`H${totalRowIdx}`).value = { formula: `SUBTOTAL(9,H2:H${dataRowCount + 1})` };
-    ['F', 'G', 'H'].forEach((col) => {
+    sheet.getCell(`I${totalRowIdx}`).value = { formula: `SUBTOTAL(9,I2:I${dataRowCount + 1})` };
+    ['G', 'H', 'I'].forEach((col) => {
       sheet.getCell(`${col}${totalRowIdx}`).numFmt = CURRENCY_FMT;
       sheet.getCell(`${col}${totalRowIdx}`).font = { bold: true };
     });

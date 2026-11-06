@@ -1,463 +1,479 @@
-import { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Trash2, Save, Send, Printer, UserPlus } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, Trash2, Save, Send, Printer, UserPlus, Banknote, Landmark, Smartphone, FileCheck2 } from 'lucide-react';
+import ScreenHeader from '../../core/ui/ScreenHeader';
+import GlassCard from '../../core/ui/GlassCard';
+import GlassButton from '../../core/ui/GlassButton';
+import { GlassInput, GlassSelect, GlassToggleGroup } from '../../core/ui/GlassFormControls';
 import { db } from '../../core/db/schema';
-import { useCustomers, useFinishedStock, useInvoiceSettings } from '../../core/hooks/useDexieHooks';
+import { useCustomers, useFinishedStock } from '../../core/hooks/useDexieHooks';
 import { useUIStore } from '../../core/store/uiStore';
-import { todayISO } from '../../core/utils/format';
-import { generateInvoicePDF } from '../documents/pdfExport';
-import { hapticTap, saveAndShareBlob } from '../../core/utils/nativeFileBridge';
-import { openWhatsAppLink } from '../../core/utils/whatsapp';
+import { todayISO, formatINR, formatNumber } from '../../core/utils/format';
+import { hapticTap } from '../../core/utils/nativeFileBridge';
 import { recordSale } from '../../core/db/ledgerEngine';
-import { Capacitor } from '@capacitor/core';
+import { computeInvoiceTotals } from '../../core/billing/invoiceMath';
+import { loadBillingProfile, isInterState } from '../../core/billing/profile';
+import { nextInvoiceNumber } from '../../core/billing/invoiceNumber';
 
-// ----- STYLED COMPONENTS -----
-const Label = ({ children }) => <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{children}</label>;
-const Input = (props) => <input {...props} className={`w-full bg-slate-100/50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:border-[#C65D2E] focus:ring-1 focus:ring-[#C65D2E] transition-all placeholder:text-slate-400 ${props.className||''}`} />;
-const Select = (props) => <select {...props} className={`w-full bg-slate-100/50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:border-[#C65D2E] focus:ring-1 focus:ring-[#C65D2E] appearance-none ${props.className||''}`}>{props.children}</select>;
+let rowSeq = 1;
+const newRow = (description = '', rate = '') => ({ key: rowSeq++, description, quantity: '', rate });
 
+/**
+ * InvoiceBuilderScreen
+ * ---------------------
+ * Multi-product GST-ready invoice. Totals use the same calculation as the
+ * PDF (invoiceMath), so what you see here is exactly what gets printed.
+ */
 export default function InvoiceBuilderScreen({ onBack }) {
-  const pushToast = useUIStore(s => s.pushToast);
-  const invoiceBuilderData = useUIStore(s => s.invoiceBuilderData);
-  const setInvoiceBuilderData = useUIStore(s => s.setInvoiceBuilderData);
-  
+  const pushToast = useUIStore((s) => s.pushToast);
+  const setInvoiceBuilderData = useUIStore((s) => s.setInvoiceBuilderData);
   const customers = useCustomers();
   const finishedStock = useFinishedStock();
-  const settings = useInvoiceSettings();
+  const products = (finishedStock || []).filter((f) => f.isActive !== 0);
 
-  const isExisting = !!invoiceBuilderData;
+  const [profile, setProfile] = useState(null);
+  const [date, setDate] = useState(todayISO());
+  const [previewNumber, setPreviewNumber] = useState('');
 
-  // Invoice Meta
-  const [invNum, setInvNum] = useState(invoiceBuilderData?.invoice?.invoiceNumber || `JVI-${todayISO().replace(/-/g, '')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`);
-  const [date, setDate] = useState(invoiceBuilderData?.invoice?.date ? invoiceBuilderData.invoice.date.substring(0, 10) : todayISO());
-  
-  // Customer Details
-  const [selectedCustomerId, setSelectedCustomerId] = useState(invoiceBuilderData?.customer?.id || '');
+  const [customerId, setCustomerId] = useState('');
   const [showNewCustomer, setShowNewCustomer] = useState(false);
-  const [newCustomerName, setNewCustomerName] = useState(invoiceBuilderData?.customer?.name || '');
-  const [newCustomerPhone, setNewCustomerPhone] = useState(invoiceBuilderData?.customer?.phone || '');
-  // Vehicle Details
-  const [vehicleNumber, setVehicleNumber] = useState(invoiceBuilderData?.vehicle?.vehicleNumber || '');
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newAddress, setNewAddress] = useState('');
+
+  const [rows, setRows] = useState([newRow()]);
+  const [transport, setTransport] = useState('');
+  const [loading, setLoading] = useState('');
+  const [unloading, setUnloading] = useState('');
+  const [other, setOther] = useState('');
+
+  const [amountPaid, setAmountPaid] = useState('');
+  const [paymentChannel, setPaymentChannel] = useState('cash');
+  const [vehicleNumber, setVehicleNumber] = useState('');
   const [remarks, setRemarks] = useState('');
-
-  // Products
-  const [items, setItems] = useState(
-    invoiceBuilderData?.items?.length 
-      ? invoiceBuilderData.items.map(it => ({ 
-          id: Math.random().toString(), 
-          date: it.date || todayISO(),
-          description: it.description, 
-          quantity: it.quantity, 
-          rate: it.rate, 
-          amount: it.amount,
-          paid: it.paid !== undefined ? it.paid : 0,
-          balance: it.balance !== undefined ? it.balance : 0,
-          paymentMode: it.paymentMode || ''
-        }))
-      : [{ id: '1', date: todayISO(), description: '', quantity: '', rate: '', amount: 0, paymentMode: '' }]
-  );
-
-  // Extras
-  const [transport, setTransport] = useState(invoiceBuilderData?.summary?.transportCharges ? String(invoiceBuilderData.summary.transportCharges) : '');
-  const [loading, setLoading] = useState(invoiceBuilderData?.summary?.loadingCharges ? String(invoiceBuilderData.summary.loadingCharges) : '');
-  const [unloading, setUnloading] = useState(invoiceBuilderData?.summary?.unloadingCharges ? String(invoiceBuilderData.summary.unloadingCharges) : '');
-  const [otherCharges, setOtherCharges] = useState(invoiceBuilderData?.summary?.otherCharges ? String(invoiceBuilderData.summary.otherCharges) : '');
-  
-  // Payment
-  const [amountPaid, setAmountPaid] = useState(invoiceBuilderData?.summary?.amountPaid ? String(invoiceBuilderData.summary.amountPaid) : '');
-  const [paymentChannel, setPaymentChannel] = useState(invoiceBuilderData?.summary?.paymentChannel || 'cash');
-
   const [saving, setSaving] = useState(false);
 
-  // ----- CALCULATIONS -----
-  const isStatement = invoiceBuilderData?.invoice?.type === 'STATEMENT';
+  useEffect(() => {
+    loadBillingProfile().then(setProfile).catch(() => {});
+    // Clear any legacy hand-off data from older app versions.
+    setInvoiceBuilderData(null);
+  }, [setInvoiceBuilderData]);
 
-  const subtotal = isStatement && invoiceBuilderData.summary 
-      ? invoiceBuilderData.summary.subtotal 
-      : items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
-      
-  const transportCharges = Number(transport) || 0;
-  const loadingCharges = Number(loading) || 0;
-  const unloadingCharges = Number(unloading) || 0;
-  const otherChargesVal = Number(otherCharges) || 0;
-  
-  const taxableAmount = subtotal + transportCharges + loadingCharges + unloadingCharges + otherChargesVal;
-  const grandTotal = taxableAmount;
-  
-  const paid = isStatement && invoiceBuilderData.summary
-      ? invoiceBuilderData.summary.amountPaid
-      : Number(amountPaid) || 0;
-      
-  const balanceDue = isStatement && invoiceBuilderData.summary
-      ? invoiceBuilderData.summary.balanceDue
-      : grandTotal - paid;
-  
-  let paymentStatus = 'pending';
-  if (paid > 0 && paid < grandTotal) paymentStatus = 'partial';
-  if (paid >= grandTotal && grandTotal > 0) paymentStatus = 'paid';
+  useEffect(() => {
+    nextInvoiceNumber(date).then(setPreviewNumber).catch(() => setPreviewNumber(''));
+  }, [date]);
 
-  // ----- HANDLERS -----
-  const handleAddItem = () => setItems([...items, { id: Date.now().toString(), date: date || todayISO(), description: '', quantity: '', rate: '', amount: 0, paymentMode: paymentChannel || '' }]);
-  const handleRemoveItem = (id) => items.length > 1 && setItems(items.filter(it => it.id !== id));
-  const handleCreateCustomer = async () => { if (!newCustomerName) return; const id = await db.customers.add({ name: newCustomerName, phone: newCustomerPhone, outstandingBalance: 0, createdAt: new Date().toISOString() }); setSelectedCustomerId(id); setShowNewCustomer(false); };
+  const customer = (customers || []).find((c) => String(c.id) === String(customerId));
+  const inv = profile?.invoice;
 
-  const updateItem = (id, field, value) => {
-    setItems(prev => prev.map(it => {
-      if (it.id !== id) return it;
-      const updated = { ...it, [field]: value };
-      const q = Number(updated.quantity) || 0;
-      const r = Number(updated.rate) || 0;
-      updated.amount = q * r;
-      return updated;
-    }));
+  const totals = useMemo(
+    () =>
+      computeInvoiceTotals({
+        items: rows
+          .filter((r) => r.description.trim() || Number(r.quantity) > 0)
+          .map((r) => ({ description: r.description.trim(), quantity: r.quantity, rate: r.rate })),
+        charges: { transport, loading, unloading, other },
+        gstMode: inv?.gstMode || 'none',
+        gstRate: inv?.gstRate || 0,
+        interState: profile ? isInterState(profile, customer) : false,
+      }),
+    [rows, transport, loading, unloading, other, inv, profile, customer]
+  );
+  const taxed = totals.gstMode !== 'none' && totals.gstRate > 0;
+  const paid = Number(amountPaid) || 0;
+  const balance = Math.round((totals.grandTotal - paid) * 100) / 100;
+
+  const updateRow = (key, field, value) => {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.key !== key) return r;
+        const next = { ...r, [field]: value };
+        // Fill the selling price when a known product is chosen.
+        if (field === 'description') {
+          const p = products.find((x) => x.brickSize === value);
+          if (p && (!r.rate || r.description !== value)) next.rate = String(p.sellingPrice ?? '');
+        }
+        return next;
+      })
+    );
   };
 
-  const handleSaveInvoice = async (andPrint = false, andShare = false) => {
-    if (!selectedCustomerId && !newCustomerName) { pushToast('Select or create customer', 'error'); return; }
+  const stockWarnings = useMemo(() => {
+    const need = {};
+    for (const r of rows) if (r.description) need[r.description] = (need[r.description] || 0) + (Number(r.quantity) || 0);
+    return Object.entries(need)
+      .map(([d, q]) => {
+        const p = products.find((x) => x.brickSize === d);
+        return p && q > (p.currentStock || 0) ? `${d}: need ${formatNumber(q)}, only ${formatNumber(p.currentStock)} in stock` : null;
+      })
+      .filter(Boolean);
+  }, [rows, products]);
+
+  const handleCreateCustomer = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    const existing = await db.customers.where('name').equalsIgnoreCase(name).first();
+    const id = existing
+      ? existing.id
+      : await db.customers.add({
+          name,
+          phone: newPhone.trim(),
+          address: newAddress.trim(),
+          outstandingBalance: 0,
+          createdAt: new Date().toISOString(),
+        });
+    setCustomerId(String(id));
+    setShowNewCustomer(false);
+    setNewName('');
+    setNewPhone('');
+    setNewAddress('');
+    if (existing) pushToast(`${existing.name} already exists — selected`, 'info');
+  };
+
+  const validate = () => {
+    if (!customerId) return 'Select or add a customer.';
+    const used = rows.filter((r) => r.description.trim() || Number(r.quantity) > 0);
+    if (!used.length) return 'Add at least one product.';
+    if (used.some((r) => !r.description.trim() || !(Number(r.quantity) > 0) || !(Number(r.rate) > 0)))
+      return 'Every product row needs a name, quantity and rate — or remove the empty row.';
+    if (paid < 0 || paid > totals.grandTotal + 0.009) return 'Amount received cannot be more than the grand total.';
+    return null;
+  };
+
+  const handleSave = async (mode) => {
+    if (saving) return;
+    const err = validate();
+    if (err) {
+      pushToast(err, 'error');
+      return;
+    }
+    if (stockWarnings.length && !window.confirm(`Not enough stock:\n${stockWarnings.join('\n')}\n\nSave anyway? Stock will go below zero.`)) return;
+
     setSaving(true);
     try {
-      let newCustId = selectedCustomerId;
-      if (newCustomerName && !selectedCustomerId) {
-        const existing = await db.customers.where('name').equalsIgnoreCase(newCustomerName).first();
-        if (existing) {
-          newCustId = existing.id;
-        } else {
-          newCustId = await db.customers.add({ name: newCustomerName, phone: newCustomerPhone, outstandingBalance: 0, createdAt: new Date().toISOString() });
-        }
-      }
-
-      const cleanItems = items.map(i => ({ 
-        date: i.date,
-        description: i.description, 
-        quantity: Number(i.quantity), 
-        rate: Number(i.rate), 
-        amount: Number(i.amount),
-        paid: i.paid !== undefined ? Number(i.paid) : undefined,
-        balance: i.balance !== undefined ? Number(i.balance) : undefined,
-        paymentMode: i.paymentMode
-      }));
-      const cust = await db.customers.get(Number(newCustId));
-      
-      if (!isExisting) {
-        await recordSale({
-          date, customerId: Number(newCustId),
-          invoiceNumber: invNum,
-          items: cleanItems,
-          totalAmount: grandTotal,
-          amountPaid: paid,
-          paymentChannel,
-          balanceDue, paymentStatus
-        });
-      }
-
+      const unit = inv?.unit || 'Nos';
+      const hsn = inv?.hsn || '';
+      const res = await recordSale({
+        date,
+        customerId: Number(customerId),
+        items: totals.lines.map((l) => ({
+          description: l.description,
+          quantity: l.quantity,
+          rate: l.rate,
+          amount: l.amount,
+          unit,
+          hsn,
+        })),
+        totalAmount: totals.grandTotal,
+        amountPaid: paid,
+        paymentChannel: paid > 0 ? paymentChannel : 'credit',
+        charges: {
+          transport: Number(transport) || 0,
+          loading: Number(loading) || 0,
+          unloading: Number(unloading) || 0,
+          other: Number(other) || 0,
+        },
+        tax: {
+          gstMode: totals.gstMode,
+          gstRate: totals.gstRate,
+          interState: totals.interState,
+          taxableValue: totals.taxableValue,
+          cgst: totals.cgst,
+          sgst: totals.sgst,
+          igst: totals.igst,
+          totalTax: totals.totalTax,
+          roundOff: totals.roundOff,
+        },
+        vehicleNumber: vehicleNumber.trim().toUpperCase(),
+        remarks: remarks.trim(),
+      });
       await hapticTap();
-      const factorySettings = {};
-      const s = await db.settings.toArray();
-      s.forEach(x => factorySettings[x.key] = x.value);
-      
-      const invoiceData = {
-        invoice: { invoiceNumber: invNum, date, type: invoiceBuilderData?.invoice?.type, paymentChannel },
-        items: cleanItems,
-        summary: { subtotal, transportCharges, loadingCharges, unloadingCharges, otherCharges: otherChargesVal, grandTotal, amountPaid: paid, balanceDue, paymentStatus, paymentChannel },
-        customer: cust || { name: newCustomerName },
-        vehicle: { vehicleNumber },
-        factory: factorySettings,
-        settings: settings
-      };
+      pushToast(`Invoice ${res.invoiceNumber} saved`, 'success');
 
-      if (andPrint || andShare) {
-        const pdfBlob = await generateInvoicePDF(invoiceData);
-        
-        if (andShare) {
-          const totalQty = cleanItems.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
-          const paidAmount = (grandTotal - balanceDue);
-          
-          const text = `🧱 *JAYA VASAVI INDUSTRIES*
-
-Dear *${cust ? cust.name : newCustomerName},*
-
-Thank you for choosing Jaya Vasavi Industries.
-
-Please find your invoice attached.
-
-📄 Invoice No : ${invNum}
-📅 Date : ${date}
-
-🧱 Total Quantity : ${totalQty} Nos
-💰 Grand Total : ₹${grandTotal.toLocaleString()}
-💳 Paid Amount : ₹${paidAmount.toLocaleString()}
-💵 Balance Due : ₹${balanceDue.toLocaleString()}
-
-If you have any questions regarding this invoice, please feel free to contact us.
-
-Thank you for your continued trust and support.
-
-Regards,
-*JAYA VASAVI INDUSTRIES*
-📍 Chinamamidipalli, Narsapur, West Godavari
-📞 9848174346 | 9502266200`;
-          if (!Capacitor.isNativePlatform()) {
-            await openWhatsAppLink(`https://wa.me/?text=${encodeURIComponent(text)}`);
-          }
-          await saveAndShareBlob(pdfBlob, `${invNum}.pdf`, 'application/pdf', text);
-        } else {
-          await saveAndShareBlob(pdfBlob, `${invNum}.pdf`, 'application/pdf');
+      if (mode !== 'save') {
+        try {
+          const { shareSaleInvoice } = await import('../../core/billing/documents');
+          await shareSaleInvoice(res.id, { share: mode === 'share' });
+        } catch (e) {
+          console.error(e);
+          pushToast('Saved, but the PDF could not be shared. Share it from the customer ledger.', 'error');
         }
       }
-
-      setInvoiceBuilderData(null);
       onBack();
-
     } catch (e) {
       console.error(e);
-      pushToast('Error saving invoice', 'error');
+      pushToast(e.message || 'Error saving invoice', 'error');
     } finally {
       setSaving(false);
     }
   };
 
+  const chargeFields = [
+    inv?.showTransport !== false && ['Transport', transport, setTransport],
+    inv?.showLoading !== false && ['Loading', loading, setLoading],
+    inv?.showUnloading !== false && ['Unloading', unloading, setUnloading],
+    inv?.showOtherCharges !== false && ['Other', other, setOther],
+  ].filter(Boolean);
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-48">
-      <div className="bg-white border-b border-slate-200 px-4 pt-safe-header pb-4 flex items-center gap-3 sticky top-0 z-10 shadow-sm">
-        <button onClick={onBack} className="p-2 rounded-full bg-slate-100 text-slate-600 active:scale-95 transition-transform">
-          <ArrowLeft size={18} />
-        </button>
-        <div>
-          <h1 className="font-bold text-slate-800 text-lg leading-tight">Create Invoice</h1>
-          <p className="text-xs text-slate-500 font-medium">Premium Billing Module</p>
-        </div>
-      </div>
+    <div className="pb-56 md:pb-40 md:pt-6">
+      <ScreenHeader
+        onBack={onBack}
+        eyebrow={taxed ? 'Tax Invoice' : 'Invoice'}
+        title="New Invoice"
+        subtitle={previewNumber ? `No. ${previewNumber}` : undefined}
+      />
 
-      <div className="p-4 space-y-4 max-w-7xl mx-auto">
-        
-        <div className="bg-white rounded-2xl p-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-slate-100">
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-sm font-bold text-slate-800">Customer Details</h2>
-            <p className="text-xs font-semibold text-[#C65D2E]">{date}</p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {!showNewCustomer ? (
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <Label>Select Customer</Label>
-                  <Select value={selectedCustomerId} onChange={e => setSelectedCustomerId(e.target.value)}>
-                    <option value="">Choose customer...</option>
-                    {(customers || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </Select>
-                </div>
-                <button onClick={() => setShowNewCustomer(true)} className="p-2.5 bg-slate-100 rounded-lg text-slate-600"><UserPlus size={18}/></button>
-              </div>
-            ) : (
-              <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <div><Label>New Customer Name</Label><Input value={newCustomerName} onChange={e=>setNewCustomerName(e.target.value)} placeholder="Full name"/></div>
-                <div><Label>Phone Number</Label><Input value={newCustomerPhone} onChange={e=>setNewCustomerPhone(e.target.value)} type="tel" placeholder="10 digits"/></div>
-                <div className="col-span-full flex gap-2 justify-end mt-1">
-                  <button onClick={() => setShowNewCustomer(false)} className="px-4 py-1.5 text-xs font-bold text-slate-500">Cancel</button>
-                  <button onClick={handleCreateCustomer} className="px-4 py-1.5 text-xs font-bold bg-[#C65D2E] text-white rounded-lg">Save & Select</button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-0 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-slate-100 overflow-hidden">
-          <div className="p-4 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-800">Products</h2>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[600px]">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider font-bold text-slate-500">
-                  <th className="p-3 w-8">#</th>
-                  <th className="p-3 w-32">Date</th>
-                  <th className="p-3 min-w-[200px]">Product / Description</th>
-                  <th className="p-3 w-24">Qty</th>
-                  <th className="p-3 w-28">Rate (₹)</th>
-                  <th className="p-3 w-32 text-right">Amount</th>
-                  {isStatement && (
-                    <>
-                      <th className="p-3 w-32 text-right text-emerald-600">Paid</th>
-                      <th className="p-3 w-32 text-right text-[#C65D2E]">Balance</th>
-                    </>
-                  )}
-                  <th className="p-3 w-28 text-center">Pay Mode</th>
-                  <th className="p-3 w-12 text-center"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item, idx) => (
-                  <tr key={item.id} className="border-b border-slate-100 last:border-0 group">
-                    <td className="p-3 text-xs text-slate-400 font-medium">{idx + 1}</td>
-                    <td className="p-3">
-                      <Input type="date" value={item.date || ''} onChange={e => updateItem(item.id, 'date', e.target.value)} className="bg-transparent border-transparent hover:border-slate-200 focus:bg-white text-xs px-1" />
-                    </td>
-                    <td className="p-3">
-                      <Input 
-                        list="products"
-                        value={item.description} 
-                        onChange={e => updateItem(item.id, 'description', e.target.value)}
-                        placeholder="Type or select..."
-                        className="bg-transparent border-transparent hover:border-slate-200 focus:bg-white"
-                      />
-                      <datalist id="products">
-                        {(finishedStock||[]).filter(s=>s.isActive).map(s => <option key={s.id} value={s.brickSize} />)}
-                      </datalist>
-                    </td>
-                    <td className="p-3">
-                      <Input type="number" value={item.quantity} onChange={e => updateItem(item.id, 'quantity', e.target.value)} className="bg-transparent border-transparent hover:border-slate-200 text-center focus:bg-white" placeholder="0" />
-                    </td>
-                    <td className="p-3">
-                      <Input type="number" value={item.rate} onChange={e => updateItem(item.id, 'rate', e.target.value)} className="bg-transparent border-transparent hover:border-slate-200 text-right focus:bg-white" placeholder="0.0" />
-                    </td>
-                    <td className="p-3 text-right text-sm font-bold text-slate-700">
-                      ₹{item.amount?.toLocaleString()}
-                    </td>
-                    {isStatement && (
-                      <>
-                        <td className="p-3 text-right text-sm font-bold text-emerald-600">
-                          {item.paid ? `₹${item.paid.toLocaleString()}` : '-'}
-                        </td>
-                        <td className="p-3 text-right text-sm font-bold text-[#C65D2E]">
-                          {item.balance !== undefined ? `₹${item.balance.toLocaleString()}` : '-'}
-                        </td>
-                      </>
-                    )}
-                    <td className="p-3 text-center">
-                      <Select value={item.paymentMode || ''} onChange={e => updateItem(item.id, 'paymentMode', e.target.value)} className="bg-transparent border-transparent hover:border-slate-200 focus:bg-white text-xs px-1">
-                        <option value="">Default</option>
-                        <option value="cash">Cash</option>
-                        <option value="upi">UPI</option>
-                        <option value="bank">Bank</option>
-                        <option value="credit">Credit</option>
-                      </Select>
-                    </td>
-                    <td className="p-3 text-center">
-                      <button onClick={() => handleRemoveItem(item.id)} className="text-slate-300 hover:text-red-500 opacity-50 group-hover:opacity-100 transition-opacity">
-                        <Trash2 size={16}/>
-                      </button>
-                    </td>
-                  </tr>
+      <div className="px-5 md:px-8 space-y-4 max-w-3xl mx-auto">
+        {/* Customer & date */}
+        <GlassCard padding="p-4 space-y-3">
+          <GlassInput label="Invoice Date" type="date" value={date} max={todayISO()} onChange={(e) => e.target.value && setDate(e.target.value)} />
+          {!showNewCustomer ? (
+            <div>
+              <GlassSelect label="Bill To" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                <option value="">Select customer…</option>
+                {(customers || []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.phone ? ` · ${c.phone}` : ''}
+                  </option>
                 ))}
-              </tbody>
-            </table>
-          </div>
-          
-          <div className="p-3 bg-slate-50 border-t border-slate-100">
-            <button onClick={handleAddItem} className="flex items-center gap-2 text-[#C65D2E] text-xs font-bold px-3 py-2 hover:bg-[#C65D2E]/10 rounded-lg transition-colors">
-              <Plus size={14}/> Add Product Row
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-4">
-            <div className="bg-white rounded-2xl p-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-slate-100">
-              <h2 className="text-sm font-bold text-slate-800 mb-3">Additional Details</h2>
-              <div className="space-y-3">
-                {settings?.showVehicleNumber === '1' && (
-                  <div><Label>Vehicle Number</Label><Input value={vehicleNumber} onChange={e=>setVehicleNumber(e.target.value)} placeholder="AP 37..."/></div>
+              </GlassSelect>
+              <div className="flex items-center justify-between mt-2 px-1">
+                <button
+                  onClick={() => setShowNewCustomer(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-ember-400 touch-manipulation"
+                >
+                  <UserPlus size={13} /> New customer
+                </button>
+                {customer && (customer.outstandingBalance || 0) > 0 && (
+                  <span className="text-[11px] text-ledger-overdue">Previous due {formatINR(customer.outstandingBalance)}</span>
                 )}
-                <div><Label>Remarks</Label><Input value={remarks} onChange={e=>setRemarks(e.target.value)} placeholder="Any notes..."/></div>
+              </div>
+              {customer && !customer.address && (
+                <p className="text-[11px] text-clay-500 mt-1 px-1">Tip: add the customer’s address in their ledger (Edit) so it prints on the bill.</p>
+              )}
+            </div>
+          ) : (
+            <div className="glass-surface-light rounded-2xl p-3.5 space-y-3">
+              <GlassInput label="Customer Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
+              <GlassInput label="Phone" inputMode="tel" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
+              <GlassInput label="Address" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} placeholder="Village / Town" />
+              <div className="flex gap-2">
+                <GlassButton size="sm" variant="glass" fullWidth onClick={() => setShowNewCustomer(false)}>
+                  Cancel
+                </GlassButton>
+                <GlassButton size="sm" fullWidth onClick={handleCreateCustomer}>
+                  Save & Select
+                </GlassButton>
               </div>
             </div>
+          )}
+        </GlassCard>
+
+        {/* Items */}
+        <GlassCard padding="p-4">
+          <h3 className="text-xs font-semibold text-clay-300 uppercase tracking-wide mb-3">Products</h3>
+          <datalist id="invoice-products">
+            {products.map((p) => (
+              <option key={p.id} value={p.brickSize} />
+            ))}
+          </datalist>
+          <div className="space-y-3">
+            {rows.map((r, i) => {
+              const amount = (Number(r.quantity) || 0) * (Number(r.rate) || 0);
+              return (
+                <div key={r.key} className="glass-surface-light rounded-2xl p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-clay-400">Item {i + 1}</span>
+                    {rows.length > 1 && (
+                      <button
+                        onClick={() => setRows((prev) => prev.filter((x) => x.key !== r.key))}
+                        aria-label={`Remove item ${i + 1}`}
+                        className="p-1.5 -m-1.5 text-clay-500 hover:text-ledger-overdue touch-manipulation"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </div>
+                  <GlassInput
+                    list="invoice-products"
+                    placeholder="Product (e.g. 4-inch)"
+                    value={r.description}
+                    onChange={(e) => updateRow(r.key, 'description', e.target.value)}
+                    aria-label="Product"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <GlassInput
+                      label={`Qty (${inv?.unit || 'Nos'})`}
+                      type="number"
+                      inputMode="numeric"
+                      min="0"
+                      value={r.quantity}
+                      onChange={(e) => updateRow(r.key, 'quantity', e.target.value)}
+                    />
+                    <GlassInput
+                      label={taxed && totals.gstMode === 'exclusive' ? 'Rate (before GST)' : 'Rate'}
+                      type="number"
+                      inputMode="decimal"
+                      prefix="₹"
+                      min="0"
+                      value={r.rate}
+                      onChange={(e) => updateRow(r.key, 'rate', e.target.value)}
+                    />
+                  </div>
+                  {amount > 0 && (
+                    <p className="text-right text-xs text-clay-400">
+                      Amount <span className="figure font-semibold text-clay-100">{formatINR(amount, { decimals: 2 })}</span>
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
-
-          <div className="bg-white rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-slate-100 overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-slate-100 flex-1 space-y-3">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-500 font-medium">Subtotal</span>
-                <span className="font-bold text-slate-800">₹{subtotal.toLocaleString()}</span>
-              </div>
-
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-sm text-slate-500 flex-1">Transport Charges</span>
-                <Input type="number" value={transport} onChange={e=>setTransport(e.target.value)} placeholder="0" className="!py-1 !text-xs w-24 text-right"/>
-              </div>
-
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-sm text-slate-500 flex-1">Loading Charges</span>
-                <Input type="number" value={loading} onChange={e=>setLoading(e.target.value)} placeholder="0" className="!py-1 !text-xs w-24 text-right"/>
-              </div>
-
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-sm text-slate-500 flex-1">Unloading Charges</span>
-                <Input type="number" value={unloading} onChange={e=>setUnloading(e.target.value)} placeholder="0" className="!py-1 !text-xs w-24 text-right"/>
-              </div>
-
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-sm text-slate-500 flex-1">Other Charges</span>
-                <Input type="number" value={otherCharges} onChange={e=>setOtherCharges(e.target.value)} placeholder="0" className="!py-1 !text-xs w-24 text-right"/>
-              </div>
-            </div>
-            
-            <div className="bg-[#1E293B] p-4 text-white">
-              <div className="flex justify-between items-end">
-                <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Grand Total</span>
-                <span className="text-3xl font-bold">₹{grandTotal.toLocaleString('en-IN', {maximumFractionDigits:0})}</span>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* PAYMENT SECTION */}
-        <div className="bg-white rounded-2xl p-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-slate-100">
-          <h2 className="text-sm font-bold text-slate-800 mb-3">Payment Receipt</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Amount Paid Now</Label>
-              <Input type="number" value={amountPaid} onChange={e=>setAmountPaid(e.target.value)} placeholder="₹0" className="!text-lg font-bold text-[#C65D2E]" />
-            </div>
-            <div>
-              <Label>Payment Mode</Label>
-              <Select value={paymentChannel} onChange={e=>{
-                setPaymentChannel(e.target.value);
-                if (!isStatement) {
-                  setItems(prev => prev.map(it => ({ ...it, paymentMode: e.target.value })));
-                }
-              }} className="!h-10">
-                <option value="cash">Cash</option>
-                <option value="upi">UPI</option>
-                <option value="bank">Bank Transfer</option>
-                <option value="cheque">Cheque</option>
-                <option value="credit">Full Credit (Later)</option>
-              </Select>
-            </div>
-          </div>
-          
-          <div className="mt-4 flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Status</p>
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${paymentStatus === 'paid' ? 'bg-green-500' : paymentStatus === 'partial' ? 'bg-orange-500' : 'bg-red-500'}`} />
-                <span className="text-sm font-bold text-slate-700 capitalize">{paymentStatus}</span>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Balance Due</p>
-              <span className={`text-sm font-bold ${balanceDue > 0 ? 'text-red-500' : 'text-slate-700'}`}>₹{balanceDue.toLocaleString()}</span>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* FAB Footer */}
-      <div className="fixed bottom-[80px] md:bottom-0 left-0 md:left-64 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 flex gap-3 z-50">
-        {!isExisting && (
-          <button onClick={() => handleSaveInvoice(false, false)} disabled={saving} className="flex-1 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors">
-            <Save size={18}/> {saving ? 'Saving...' : 'Save Only'}
+          <button
+            onClick={() => setRows((prev) => [...prev, newRow()])}
+            className="mt-3 w-full h-11 rounded-xl border border-dashed border-glass-border text-ember-400 text-sm font-semibold flex items-center justify-center gap-1.5 touch-manipulation"
+          >
+            <Plus size={15} /> Add another product
           </button>
+          {stockWarnings.length > 0 && (
+            <div className="mt-3 rounded-xl p-3 bg-ledger-partial/10 border border-ledger-partial/30 text-xs text-ledger-partial space-y-0.5">
+              {stockWarnings.map((w) => (
+                <p key={w}>Low stock — {w}</p>
+              ))}
+            </div>
+          )}
+        </GlassCard>
+
+        {/* Charges */}
+        {chargeFields.length > 0 && (
+          <GlassCard padding="p-4">
+            <h3 className="text-xs font-semibold text-clay-300 uppercase tracking-wide mb-3">Extra Charges</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {chargeFields.map(([label, value, set]) => (
+                <GlassInput key={label} label={label} type="number" inputMode="decimal" prefix="₹" min="0" value={value} onChange={(e) => set(e.target.value)} />
+              ))}
+            </div>
+          </GlassCard>
         )}
-        <button onClick={() => handleSaveInvoice(true, false)} disabled={saving} className="flex-1 bg-slate-800 hover:bg-slate-900 active:bg-black text-white h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors">
-          <Printer size={18}/> {isExisting ? 'Print PDF' : 'Save & Print'}
-        </button>
-        <button onClick={() => handleSaveInvoice(false, true)} disabled={saving} className="flex-1 bg-[#25D366] hover:bg-[#1DA851] active:bg-[#168840] text-white h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors">
-          <Send size={18}/> {isExisting ? 'Share PDF' : 'Save & Share'}
-        </button>
+
+        {/* Totals */}
+        <GlassCard padding="p-4">
+          <div className="space-y-1.5 text-sm">
+            <Row label="Goods value" value={totals.itemsTotal} />
+            {totals.charges.map((c) => (
+              <Row key={c.label} label={c.label} value={c.amount} />
+            ))}
+            {taxed && (
+              <>
+                <Row label="Taxable value" value={totals.taxableValue} />
+                {totals.interState ? (
+                  <Row label={`IGST @ ${totals.gstRate}%`} value={totals.igst} />
+                ) : (
+                  <>
+                    <Row label={`CGST @ ${totals.gstRate / 2}%`} value={totals.cgst} />
+                    <Row label={`SGST @ ${totals.gstRate / 2}%`} value={totals.sgst} />
+                  </>
+                )}
+              </>
+            )}
+            {Math.abs(totals.roundOff) >= 0.005 && <Row label="Round off" value={totals.roundOff} />}
+          </div>
+          <div className="mt-3 pt-3 border-t border-white/10 flex items-end justify-between">
+            <span className="text-xs font-semibold text-clay-300 uppercase tracking-wide">Grand Total</span>
+            <span className="figure text-2xl font-bold text-ember-400">{formatINR(totals.grandTotal)}</span>
+          </div>
+          {!taxed && (
+            <p className="text-[11px] text-clay-500 mt-2">GST is off. Turn it on in More → Invoice Design if you bill with GST.</p>
+          )}
+        </GlassCard>
+
+        {/* Payment */}
+        <GlassCard padding="p-4 space-y-3">
+          <h3 className="text-xs font-semibold text-clay-300 uppercase tracking-wide">Payment Received Now</h3>
+          <GlassInput
+            type="number"
+            inputMode="decimal"
+            prefix="₹"
+            placeholder="0 for full credit"
+            value={amountPaid}
+            onChange={(e) => setAmountPaid(e.target.value)}
+            aria-label="Amount received"
+          />
+          {totals.grandTotal > 0 && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAmountPaid(String(totals.grandTotal))}
+                className="flex-1 h-9 rounded-xl glass-surface-light text-xs font-semibold text-ledger-paid touch-manipulation"
+              >
+                Paid in full
+              </button>
+              <button
+                type="button"
+                onClick={() => setAmountPaid('')}
+                className="flex-1 h-9 rounded-xl glass-surface-light text-xs font-semibold text-ledger-credit touch-manipulation"
+              >
+                Full credit
+              </button>
+            </div>
+          )}
+          {paid > 0 && (
+            <GlassToggleGroup
+              value={paymentChannel}
+              onChange={setPaymentChannel}
+              options={[
+                { value: 'cash', label: 'Cash', icon: Banknote },
+                { value: 'upi', label: 'UPI', icon: Smartphone },
+                { value: 'bank', label: 'Bank', icon: Landmark },
+                { value: 'cheque', label: 'Cheque', icon: FileCheck2 },
+              ]}
+            />
+          )}
+          <div className="flex justify-between text-sm pt-1">
+            <span className="text-clay-400">Balance due on this bill</span>
+            <span className={`figure font-bold ${balance > 0 ? 'text-ledger-overdue' : 'text-ledger-paid'}`}>{formatINR(balance, { decimals: 2 })}</span>
+          </div>
+        </GlassCard>
+
+        {/* Delivery */}
+        <GlassCard padding="p-4 space-y-3">
+          {inv?.showVehicleNumber !== false && (
+            <GlassInput label="Vehicle Number" value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value)} placeholder="AP 37 AB 1234" />
+          )}
+          <GlassInput label="Remarks (printed on bill)" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Optional" />
+        </GlassCard>
       </div>
 
+      {/* Action bar */}
+      <div className="fixed bottom-[88px] md:bottom-0 left-0 md:left-64 right-0 z-30 px-4 py-3 sheet-surface border-t border-white/10">
+        <div className="max-w-3xl mx-auto grid grid-cols-3 gap-2">
+          <GlassButton size="sm" variant="glass" icon={Save} onClick={() => handleSave('save')} disabled={saving}>
+            Save
+          </GlassButton>
+          <GlassButton size="sm" variant="glass" icon={Printer} onClick={() => handleSave('print')} disabled={saving}>
+            PDF
+          </GlassButton>
+          <GlassButton
+            size="sm"
+            icon={Send}
+            onClick={() => handleSave('share')}
+            disabled={saving}
+            className="!from-[#25D366] !to-[#1FAF54] !border-[#25D366]/40 !shadow-none"
+          >
+            Share
+          </GlassButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, value }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-clay-400">{label}</span>
+      <span className="figure text-clay-100">{formatINR(value, { decimals: 2 })}</span>
     </div>
   );
 }

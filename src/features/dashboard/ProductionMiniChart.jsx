@@ -10,16 +10,16 @@ import { formatNumber } from '../../core/utils/format';
  * rather than a charting library — keeps bundle size down and gives
  * full control over the touch-friendly tap targets and spring-in bars.
  */
-export default function ProductionMiniChart({ data }) {
+export default function ProductionMiniChart({ data, title = 'Production by Size' }) {
   // data: [{ label: '4-inch', value: 12000 }, ...]
   const max = Math.max(...data.map((d) => d.value), 1);
 
   return (
     <GlassCard padding="p-4">
-      <h3 className="text-sm font-semibold text-clay-200 mb-4">Production by Size</h3>
+      <h3 className="text-sm font-semibold text-clay-200 mb-4">{title}</h3>
       <div className="flex items-end justify-around gap-4 h-32">
         {data.map((d, i) => {
-          const heightPct = (d.value / max) * 100;
+          const heightPct = (Math.max(d.value, 0) / max) * 100;
           return (
             <div key={d.label} className="flex flex-col items-center gap-2 flex-1 h-full justify-end">
               <span className="figure text-xs text-clay-300 font-semibold">

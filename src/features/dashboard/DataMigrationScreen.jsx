@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react';
-import { ArrowLeft, Download, Upload, Users, Truck, ShoppingCart, ShoppingBag } from 'lucide-react';
+import { Download, Upload, Users, Truck, ShoppingCart, ShoppingBag } from 'lucide-react';
 import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
 import GlassButton from '../../core/ui/GlassButton';
 import { downloadImportTemplate, processExcelImport } from '../../core/utils/excelImport';
 import { useUIStore } from '../../core/store/uiStore';
 import { saveAndShareBlob } from '../../core/utils/nativeFileBridge';
+import { createLocalBackup } from '../../core/backup/localBackups';
 
 export default function DataMigrationScreen({ onBack }) {
   const pushToast = useUIStore((s) => s.pushToast);
@@ -40,10 +41,12 @@ export default function DataMigrationScreen({ onBack }) {
 
     setLoading(true);
     try {
+      // Safety copy first — an import can't be undone row by row.
+      await createLocalBackup('safety');
       const count = await processExcelImport(file, importType);
       pushToast(`Successfully imported ${count} records`, 'success');
     } catch (err) {
-      pushToast(err.message || 'Import failed. Check file format.', 'error');
+      pushToast(`${err.message || 'Import failed. Check file format.'} (Rows before the error were imported; a safety backup was saved.)`, 'error');
     } finally {
       setLoading(false);
     }
@@ -61,11 +64,7 @@ export default function DataMigrationScreen({ onBack }) {
       <ScreenHeader
         eyebrow="Configuration"
         title="Data Migration"
-        action={
-          <button onClick={onBack} disabled={loading} className="w-10 h-10 rounded-full glass-surface-light flex items-center justify-center touch-manipulation">
-            <ArrowLeft size={18} className="text-clay-300" />
-          </button>
-        }
+        onBack={onBack}
       />
       <div className="px-5 mt-4 space-y-4">
         

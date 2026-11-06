@@ -8,10 +8,9 @@ import CustomerLedgerSheet from './CustomerLedgerSheet';
 import AddSaleSheet from './AddSaleSheet';
 import { useCustomers, useSalesLog } from '../../core/hooks/useDexieHooks';
 import { formatINR } from '../../core/utils/format';
-import { buildOutstandingReminderLink, openWhatsAppLink } from '../../core/utils/whatsapp';
 import { useUIStore } from '../../core/store/uiStore';
 
-export default function SalesScreen({ onNavigate }) {
+export default function SalesScreen({ onNavigate, onNewSale, hideExport = false }) {
   const [addSaleOpen, setAddSaleOpen] = useState(false);
   const [editSale, setEditSale] = useState(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
@@ -24,7 +23,7 @@ export default function SalesScreen({ onNavigate }) {
     if (!customers) return [];
     const q = search.trim().toLowerCase();
     const list = q
-      ? customers.filter((c) => c.name.toLowerCase().includes(q))
+      ? customers.filter((c) => c.name.toLowerCase().includes(q) || (c.phone || '').includes(q))
       : customers;
     return [...list].sort((a, b) => (b.outstandingBalance || 0) - (a.outstandingBalance || 0));
   }, [customers, search]);
@@ -48,10 +47,10 @@ export default function SalesScreen({ onNavigate }) {
   return (
     <div className="pb-32 md:pb-12 md:pt-6">
       <ScreenHeader
-        eyebrow="Receivables"
-        title="Sales & Customers"
+        eyebrow="Sales & Receivables"
+        title="Customers"
         action={
-          <GlassButton size="sm" icon={Plus} onClick={() => setAddSaleOpen(true)}>
+          <GlassButton size="sm" icon={Plus} onClick={() => (onNewSale ? onNewSale() : setAddSaleOpen(true))}>
             Sale
           </GlassButton>
         }
@@ -65,13 +64,15 @@ export default function SalesScreen({ onNavigate }) {
               {formatINR(totalOutstanding)}
             </p>
           </div>
-          <GlassButton size="sm" variant="glass" icon={FileDown} onClick={handleExport}>
-            Export
-          </GlassButton>
+          {!hideExport && (
+            <GlassButton size="sm" variant="glass" icon={FileDown} onClick={handleExport}>
+              Export
+            </GlassButton>
+          )}
         </GlassCard>
 
         <GlassInput
-          placeholder="Search customers…"
+          placeholder="Search by name or phone…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -100,14 +101,11 @@ export default function SalesScreen({ onNavigate }) {
                 </div>
                 {c.outstandingBalance > 0 && (
                   <button
+                    aria-label={`WhatsApp reminder to ${c.name}`}
                     onClick={async (e) => {
                       e.stopPropagation();
-                      const link = buildOutstandingReminderLink({
-                        name: c.name,
-                        phone: c.phone,
-                        amount: c.outstandingBalance,
-                      });
-                      await openWhatsAppLink(link);
+                      const { sendPaymentReminder } = await import('../../core/billing/documents');
+                      await sendPaymentReminder(c.id);
                     }}
                     className="w-9 h-9 rounded-full bg-[#25D366]/15 flex items-center justify-center touch-manipulation"
                   >
@@ -120,7 +118,9 @@ export default function SalesScreen({ onNavigate }) {
 
           {filtered.length === 0 && (
             <GlassCard padding="p-8" className="text-center">
-              <p className="text-clay-400">No customers found.</p>
+              <p className="text-clay-400">
+                {search ? 'No customers match your search.' : 'No customers yet — tap “Sale” to add the first one.'}
+              </p>
             </GlassCard>
           )}
         </div>
