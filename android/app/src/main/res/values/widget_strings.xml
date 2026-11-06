@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Names shown in the phone's widget picker. -->
+<resources>
+    <string name="widget_today_name">Today</string>
+    <string name="widget_today_desc">Today\'s sales, money received and bricks made</string>
+    <string name="widget_overview_name">Factory overview</string>
+    <string name="widget_overview_desc">Today, bricks ready, money to collect and to pay</string>
+</resources>

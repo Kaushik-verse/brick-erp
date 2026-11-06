@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget colours: the app's warm light palette. Dark-mode versions are in values-night. -->
+<resources>
+    <color name="widget_bg">#FBF7F2</color>
+    <color name="widget_stroke">#EADFD2</color>
+    <color name="widget_tile">#FFFFFF</color>
+    <color name="widget_ink">#2B241D</color>
+    <color name="widget_muted">#8A7C6E</color>
+    <color name="widget_accent">#C4552A</color>
+    <color name="widget_green">#1E8750</color>
+    <color name="widget_red">#C4342C</color>
+    <color name="widget_warn">#A8650E</color>
+    <color name="widget_warn_bg">#FCEFD8</color>
+    <color name="widget_chip_4">#FBF0DC</color>
+    <color name="widget_chip_4_text">#A86F12</color>
+    <color name="widget_chip_8">#DDF1EE</color>
+    <color name="widget_chip_8_text">#1D6B61</color>
+    <color name="widget_chip_9">#F8E3D9</color>
+    <color name="widget_chip_9_text">#8E3415</color>
+</resources>

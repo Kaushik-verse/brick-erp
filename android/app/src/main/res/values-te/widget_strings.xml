@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_today_name">ఈరోజు</string>
+    <string name="widget_today_desc">ఈరోజు అమ్మకాలు, వచ్చిన డబ్బు, తయారైన ఇటుకలు</string>
+    <string name="widget_overview_name">ఫ్యాక్టరీ వివరాలు</string>
+    <string name="widget_overview_desc">ఈరోజు, సిద్ధంగా ఉన్న ఇటుకలు, రావాల్సిన / ఇవ్వాల్సిన డబ్బు</string>
+</resources>

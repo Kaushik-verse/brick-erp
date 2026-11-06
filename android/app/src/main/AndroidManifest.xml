@@ -29,31 +29,21 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- Summary Widget -->
-        <receiver android:name=".SummaryWidgetProvider" android:exported="true">
+        <!-- Home-screen widgets: drawing in WidgetRenderer.java, data from WidgetSync.jsx -->
+        <receiver android:name=".TodayWidgetProvider" android:exported="true" android:label="@string/widget_today_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider"
-                android:resource="@xml/summary_widget_info" />
+                android:resource="@xml/widget_today_info" />
         </receiver>
 
-        <!-- Dashboard Widget -->
-        <receiver android:name=".DashboardWidgetProvider" android:exported="true">
+        <receiver android:name=".OverviewWidgetProvider" android:exported="true" android:label="@string/widget_overview_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider"
-                android:resource="@xml/dashboard_widget_info" />
-        </receiver>
-
-        <!-- Stock Widget -->
-        <receiver android:name=".StockWidgetProvider" android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data android:name="android.appwidget.provider"
-                android:resource="@xml/stock_widget_info" />
+                android:resource="@xml/widget_overview_info" />
         </receiver>
     </application>
 
