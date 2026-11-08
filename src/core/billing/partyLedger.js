@@ -113,6 +113,39 @@ export function sliceLedger(ledger, from, to) {
   return { opening: round2(opening), entries: inRange, debit: round2(debit), credit: round2(credit), closing: round2(opening + debit - credit) };
 }
 
+/**
+ * What is really still unpaid on each bill.
+ *
+ * A bill's own `balanceDue` only knows what was paid at the moment it was made.
+ * Money received later ("Payment In" / supplier payments) is recorded against the
+ * party, not a bill, so without this every older bill would keep showing as due
+ * or "Overdue" even when the party owes nothing. Later payments are applied to
+ * the oldest bills first (same rule as agingBuckets). Nothing is saved; the
+ * original value stays in `savedBalanceDue`.
+ *
+ * @param {Array} bills    sales or purchases of ONE party
+ * @param {Array} payments that party's collections / supplier payments
+ */
+export function applyPaymentsToBills(bills, payments) {
+  let credit = (payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const oldestFirst = [...(bills || [])].sort(
+    (a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || '').localeCompare(b.createdAt || '') || (a.id || 0) - (b.id || 0)
+  );
+  const due = new Map();
+  for (const b of oldestFirst) {
+    const saved = Math.max(0, Number(b.balanceDue) || 0);
+    const used = Math.min(credit, saved);
+    credit -= used;
+    due.set(b, round2(saved - used));
+  }
+  return (bills || []).map((b) => {
+    const left = due.get(b);
+    const total = Number(b.totalAmount) || 0;
+    const paymentStatus = left <= 0.005 ? 'paid' : left < total - 0.005 ? 'partial' : b.paymentStatus;
+    return { ...b, savedBalanceDue: b.balanceDue, balanceDue: left, paymentStatus };
+  });
+}
+
 /** Outstanding split by age using first-in-first-out payment allocation. */
 export function agingBuckets(ledger, asOf = new Date()) {
   let credits = ledger.entries.reduce((s, e) => s + e.credit, 0) - Math.min(ledger.openingBalance, 0);

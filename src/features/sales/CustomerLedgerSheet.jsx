@@ -19,7 +19,7 @@ import { useUIStore } from '../../core/store/uiStore';
 import AddCollectionSheet from './AddCollectionSheet';
 import StatementSheet from '../documents/StatementSheet';
 import { displayInvoiceNumber } from '../../core/billing/invoiceNumber';
-import { receiptNumber } from '../../core/billing/partyLedger';
+import { receiptNumber, applyPaymentsToBills } from '../../core/billing/partyLedger';
 
 export default function CustomerLedgerSheet({ open, onClose, customerId, onNavigate, onEditSale }) {
   const pushToast = useUIStore((s) => s.pushToast);
@@ -45,7 +45,8 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
       const collections = await db.customerCollections.where('customerId').equals(customerId).toArray();
       
       const mixed = [
-        ...sales.map(s => ({ ...s, type: 'sale' })),
+        // Later payments settle the oldest bills first, so paid bills don't show as due.
+        ...applyPaymentsToBills(sales, collections).map(s => ({ ...s, type: 'sale' })),
         ...collections.map(c => ({ ...c, type: 'collection' }))
       ];
       
@@ -110,7 +111,7 @@ export default function CustomerLedgerSheet({ open, onClose, customerId, onNavig
           if (
             !window.confirm(
               `${e.message}\n\nDeleting this sale will still reduce the balance by its unpaid amount (${formatINR(
-                t.balanceDue
+                t.savedBalanceDue ?? t.balanceDue
               )}). Continue?`
             )
           )

@@ -97,7 +97,7 @@ export default function ExpensesScreen({ onBack, fillMode = false }) {
     <div className="pb-32 md:pb-12 md:pt-6">
       <ScreenHeader
         onBack={onBack}
-        eyebrow="Cash Leakage"
+        eyebrow="Money Spent"
         title="Daily Expenses"
         action={
           <GlassButton size="sm" icon={Plus} onClick={() => setAddOpen(true)}>

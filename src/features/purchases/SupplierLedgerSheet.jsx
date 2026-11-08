@@ -18,6 +18,8 @@ import { GlassInput } from '../../core/ui/GlassFormControls';
 import StatementSheet from '../documents/StatementSheet';
 import { useUIStore } from '../../core/store/uiStore';
 import AddSupplierPaymentSheet from './AddSupplierPaymentSheet';
+import { applyPaymentsToBills } from '../../core/billing/partyLedger';
+
 
 export default function SupplierLedgerSheet({ open, onClose, supplierId }) {
   const pushToast = useUIStore((s) => s.pushToast);
@@ -41,7 +43,8 @@ export default function SupplierLedgerSheet({ open, onClose, supplierId }) {
       const payments = await db.supplierPayments.where('supplierId').equals(supplierId).toArray();
       
       const mixed = [
-        ...purchases.map(p => ({ ...p, type: 'purchase' })),
+        // Later payments settle the oldest bills first, so paid bills don't show as due.
+        ...applyPaymentsToBills(purchases, payments).map(p => ({ ...p, type: 'purchase' })),
         ...payments.map(p => ({ ...p, type: 'payment' }))
       ];
       
@@ -86,7 +89,7 @@ export default function SupplierLedgerSheet({ open, onClose, supplierId }) {
           if (
             !window.confirm(
               `${e.message}\n\nDeleting this purchase will still reduce the payable by its unpaid amount (${formatINR(
-                t.balanceDue
+                t.savedBalanceDue ?? t.balanceDue
               )}). Continue?`
             )
           )

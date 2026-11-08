@@ -227,10 +227,11 @@ input[type='number'] { -moz-appearance: textfield; }
 .nav-pop { animation: nav-pop .42s cubic-bezier(.22, 1, .36, 1); transform-origin: center; }
 
 /* ---- Screen + card entrances (CSS, so they run on the compositor) ----
-   Same motion as the old framer-motion versions: screen fades/slides 8px in
-   150 ms; cards rise 10px with a spring-like ease. `backwards` fill means no
+   Screen fades in over 150 ms; cards rise 10px with a spring-like ease. `backwards` fill means no
    transform is left on the element once the animation ends. */
-@keyframes screen-enter { from { opacity: 0; transform: translateY(8px); } }
+/* Screen: opacity only. A transform here would make position:fixed children (the Sale
+   screen's Save bar, sheets) attach to this wrapper instead of the phone screen. */
+@keyframes screen-enter { from { opacity: 0; } }
 .screen-enter { animation: screen-enter .15s ease-out backwards; }
 @keyframes card-enter { from { opacity: 0; transform: translateY(10px); } }
 .card-enter { animation: card-enter .42s cubic-bezier(.22, 1, .36, 1) backwards; }
@@ -251,3 +252,10 @@ input[type='number'] { -moz-appearance: textfield; }
 .nav3d { display: inline-flex; transition: filter .3s ease, opacity .3s ease, transform .3s cubic-bezier(.22, 1, .36, 1); filter: grayscale(.55) saturate(.75); opacity: .85; }
 .nav3d-on { filter: none; opacity: 1; transform: translateY(-1px) scale(1.06); animation: nav-pop .42s cubic-bezier(.22, 1, .36, 1); }
 @media (prefers-reduced-motion: reduce) { .nav3d, .nav3d-on { transition: none; animation: none; transform: none; } }
+
+/* ---- Bottom bar while typing ----
+   Hidden while the on-screen keyboard is up (html.kb-open), so it never covers
+   a form's Save button; --nav-h then drops to 0 and pinned bars move down. */
+@media (max-width: 767px) {
+  html.kb-open .bottom-nav { display: none; }
+}

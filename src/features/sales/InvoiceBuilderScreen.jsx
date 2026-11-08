@@ -15,6 +15,22 @@ import { loadBillingProfile, isInterState } from '../../core/billing/profile';
 import { nextInvoiceNumber } from '../../core/billing/invoiceNumber';
 
 let rowSeq = 1;
+
+/**
+ * Finds the brick product a typed name refers to, so "9 inch", "9inch", "9\"",
+ * "9″" or just "9" all mean the "9-inch" stock item. Without this, a sale typed
+ * slightly differently would not reduce the brick stock.
+ */
+const productKey = (text) =>
+  String(text || '')
+    .toLowerCase()
+    .replace(/inches|inch|in\b|["″”']/g, '')
+    .replace(/[^a-z0-9]/g, '');
+function matchProduct(text, products) {
+  const key = productKey(text);
+  if (!key) return null;
+  return products.find((p) => p.brickSize === text) || products.find((p) => productKey(p.brickSize) === key) || null;
+}
 const newRow = (description = '', rate = '') => ({ key: rowSeq++, description, quantity: '', rate });
 
 /**
@@ -89,8 +105,8 @@ export default function InvoiceBuilderScreen({ onBack }) {
         const next = { ...r, [field]: value };
         // Fill the selling price when a known product is chosen.
         if (field === 'description') {
-          const p = products.find((x) => x.brickSize === value);
-          if (p && (!r.rate || r.description !== value)) next.rate = String(p.sellingPrice ?? '');
+          const p = matchProduct(value, products);
+          if (p && (!r.rate || matchProduct(r.description, products) !== p)) next.rate = String(p.sellingPrice ?? '');
         }
         return next;
       })
@@ -99,7 +115,11 @@ export default function InvoiceBuilderScreen({ onBack }) {
 
   const stockWarnings = useMemo(() => {
     const need = {};
-    for (const r of rows) if (r.description) need[r.description] = (need[r.description] || 0) + (Number(r.quantity) || 0);
+    for (const r of rows) {
+      if (!r.description) continue;
+      const name = matchProduct(r.description, products)?.brickSize || r.description;
+      need[name] = (need[name] || 0) + (Number(r.quantity) || 0);
+    }
     return Object.entries(need)
       .map(([d, q]) => {
         const p = products.find((x) => x.brickSize === d);
@@ -156,7 +176,8 @@ export default function InvoiceBuilderScreen({ onBack }) {
         date,
         customerId: Number(customerId),
         items: totals.lines.map((l) => ({
-          description: l.description,
+          // Saved under the stock item's exact name, so the brick stock goes down.
+          description: matchProduct(l.description, products)?.brickSize || l.description,
           quantity: l.quantity,
           rate: l.rate,
           amount: l.amount,
@@ -446,7 +467,7 @@ export default function InvoiceBuilderScreen({ onBack }) {
       </div>
 
       {/* Action bar */}
-      <div className="fixed bottom-[88px] md:bottom-0 left-0 md:left-64 right-0 z-30 px-4 py-3 sheet-surface border-t border-white/10">
+      <div className="fixed bottom-[var(--nav-h,88px)] md:bottom-0 left-0 md:left-64 right-0 z-30 px-4 py-3 sheet-surface border-t border-white/10">
         <div className="max-w-3xl mx-auto grid grid-cols-3 gap-2">
           <GlassButton size="sm" variant="glass" icon={Save} onClick={() => handleSave('save')} disabled={saving}>
             Save

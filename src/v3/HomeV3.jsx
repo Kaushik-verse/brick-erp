@@ -59,8 +59,8 @@ export default function HomeV3({ onTab, onOpen }) {
           <p className="text-xs font-semibold text-ember-500">
             {new Date().toLocaleDateString(lang === 'te' ? 'te-IN' : 'en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
-          <h1 className="text-[26px] leading-tight font-display font-semibold text-clay-50 truncate">{t(greetingKey())}</h1>
-          {factoryName && <p className="text-sm text-clay-400 truncate">{factoryName.trim()}</p>}
+          <h1 className="text-[23px] sm:text-[26px] leading-tight font-display font-semibold text-clay-50 break-words">{t(greetingKey())}</h1>
+          {factoryName && <p className="text-sm text-clay-400 break-words">{factoryName.trim()}</p>}
         </div>
         <div className="flex items-center gap-2 mt-1 shrink-0">
           <LanguageToggle />

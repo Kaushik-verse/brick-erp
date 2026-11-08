@@ -22,6 +22,9 @@ export default function AddPurchaseSheet({ open, onClose }) {
   const [quantity, setQuantity] = useState('');
   const [unitId, setUnitId] = useState('');
   const [rate, setRate] = useState('');
+  // The bill total can be typed directly (e.g. ₹14,000 for a lorry); the rate is then worked out.
+  const [billTotal, setBillTotal] = useState('');
+  const [totalTyped, setTotalTyped] = useState(false);
   const [amountPaid, setAmountPaid] = useState('');
   const [paymentChannel, setPaymentChannel] = useState('cash');
   const [showNewSupplier, setShowNewSupplier] = useState(false);
@@ -59,12 +62,19 @@ export default function AddPurchaseSheet({ open, onClose }) {
   }, [compatibleUnits, unitId, baseUnit]);
 
   const qtyNum = Number(quantity) || 0;
-  const rateNum = Number(rate) || 0;
-  const totalAmount = Math.round(qtyNum * rateNum * 100) / 100;
+  const totalAmount = totalTyped
+    ? Math.round((Number(billTotal) || 0) * 100) / 100
+    : Math.round(qtyNum * (Number(rate) || 0) * 100) / 100;
+  const rateNum = totalTyped ? (qtyNum > 0 ? totalAmount / qtyNum : 0) : Number(rate) || 0;
+  const rateShown = totalTyped ? (rateNum ? String(Math.round(rateNum * 100) / 100) : '') : rate;
+  const totalShown = totalTyped ? billTotal : totalAmount ? String(totalAmount) : '';
   const paidNum = Number(amountPaid) || 0;
   const balanceDue = Math.max(totalAmount - paidNum, 0);
 
   const activeUnit = compatibleUnits.find(u => String(u.id) === String(unitId));
+  // Quarry Dust is counted in "units" = cubic metres; one lorry brings 6.
+  const isQuarry = /quarry|sand/i.test(selectedMaterial?.name || '');
+  const isQuarryUnit = (u) => Boolean(u && isQuarry && (u.symbol === 'unit' || u.name === 'Unit'));
   const conversionFactor = activeUnit ? activeUnit.conversionFactor : 1;
   const qtyNumBase = qtyNum * conversionFactor;
   const rateNumBase = qtyNumBase > 0 ? totalAmount / qtyNumBase : 0;
@@ -72,6 +82,8 @@ export default function AddPurchaseSheet({ open, onClose }) {
   const resetForm = () => {
     setQuantity('');
     setRate('');
+    setBillTotal('');
+    setTotalTyped(false);
     setAmountPaid('');
     setError('');
   };
@@ -251,18 +263,28 @@ export default function AddPurchaseSheet({ open, onClose }) {
           />
           <GlassSelect label="Unit" value={unitId} onChange={(e) => setUnitId(e.target.value)}>
             {(compatibleUnits.length ? compatibleUnits : [{ id: '', name: selectedMaterial?.unit || 'Unit' }]).map(u => (
-              <option key={u.id} value={u.id}>{u.name}</option>
+              <option key={u.id} value={u.id}>{isQuarryUnit(u) ? 'm³ (1 lorry = 6)' : u.name}</option>
             ))}
           </GlassSelect>
         </div>
-        <GlassInput
-          label={`Rate / ${activeUnit?.symbol || 'Unit'}`}
-          type="number"
-          inputMode="decimal"
-          prefix="₹"
-          value={rate}
-          onChange={(e) => setRate(e.target.value)}
-        />
+        <div className="grid grid-cols-2 gap-3">
+          <GlassInput
+            label={`Rate / ${isQuarryUnit(activeUnit) ? 'm³' : activeUnit?.symbol || 'Unit'}`}
+            type="number"
+            inputMode="decimal"
+            prefix="₹"
+            value={rateShown}
+            onChange={(e) => { setTotalTyped(false); setRate(e.target.value); }}
+          />
+          <GlassInput
+            label="Bill total"
+            type="number"
+            inputMode="decimal"
+            prefix="₹"
+            value={totalShown}
+            onChange={(e) => { setTotalTyped(true); setBillTotal(e.target.value); }}
+          />
+        </div>
 
         <GlassInput
           label="Amount Paid Now"

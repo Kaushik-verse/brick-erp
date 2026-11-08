@@ -154,7 +154,7 @@ export default function PassbookScreen({ onBack }) {
     <div className="pb-32">
       <ScreenHeader
         onBack={onBack}
-        eyebrow="Single Source of Truth"
+        eyebrow="Cash & Bank"
         title="Day Book"
         action={
           <div className="flex gap-2">
@@ -388,7 +388,10 @@ function AddManualEntrySheet({ open, onClose }) {
     'Bank to Cash Transfer'
   ];
 
+  // Blocks a second tap while the first save is still running (no duplicate entries).
+  const [saving, setSaving] = useState(false);
   const handleSave = async () => {
+    if (saving) return;
     const amt = Number(amount);
     if (!amt || amt <= 0) {
       pushToast("Enter a valid amount", "error"); return;
@@ -401,6 +404,7 @@ function AddManualEntrySheet({ open, onClose }) {
     if (!date) {
       pushToast("Choose a date", "error"); return;
     }
+    setSaving(true);
     try {
       await db.manualTransactions.add({
         date,
@@ -417,6 +421,8 @@ function AddManualEntrySheet({ open, onClose }) {
       setNote('');
     } catch(e) {
       pushToast("Failed to add entry", "error");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -432,7 +438,7 @@ function AddManualEntrySheet({ open, onClose }) {
         </div>
         <GlassInput label="Amount (₹)" type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} />
         <GlassInput label="Note / Remarks" value={note} onChange={e => setNote(e.target.value)} />
-        <GlassButton fullWidth onClick={handleSave}>Save Entry</GlassButton>
+        <GlassButton fullWidth onClick={handleSave} disabled={saving}>Save Entry</GlassButton>
       </div>
     </BottomSheet>
   );

@@ -32,7 +32,8 @@ export default function ScreenHeader({ eyebrow, title, action, subtitle, onBack 
               {eyebrow}
             </p>
           )}
-          <h1 className="text-[26px] leading-tight font-display font-semibold text-clay-50 truncate">
+          {/* Wraps instead of cutting off: on a phone the action buttons leave little room. */}
+          <h1 className="text-[23px] sm:text-[26px] leading-tight font-display font-semibold text-clay-50 break-words">
             {title}
           </h1>
           {subtitle && <p className="text-sm text-clay-400 mt-0.5">{subtitle}</p>}

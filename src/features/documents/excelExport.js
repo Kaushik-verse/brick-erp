@@ -3,6 +3,20 @@ import { calculateAgingDays } from '../../core/db/ledgerEngine';
 import { saveAndShareBlob } from '../../core/utils/nativeFileBridge';
 import { channelLabel } from '../../core/utils/format';
 import { displayInvoiceNumber } from '../../core/billing/invoiceNumber';
+import { applyPaymentsToBills } from '../../core/billing/partyLedger';
+import { db } from '../../core/db/schema';
+
+/** Applies each party's later payments to its bills (oldest first), keeping the original order. */
+function settleByParty(bills, payments, key) {
+  const byParty = new Map();
+  for (const b of bills) byParty.set(b[key], [...(byParty.get(b[key]) || []), b]);
+  const settled = new Map();
+  for (const [party, list] of byParty) {
+    const done = applyPaymentsToBills(list, payments.filter((p) => p[key] === party));
+    list.forEach((b, i) => settled.set(b, done[i]));
+  }
+  return bills.map((b) => settled.get(b) || b);
+}
 
 /**
  * excelExport.js
@@ -67,7 +81,7 @@ function styleHeaderRow(row) {
  * status highlighting and a SUBTOTAL-powered summary row.
  */
 export async function exportSalesLedgerExcel(sales, customersById) {
-  const safeSales = sales || [];
+  const safeSales = settleByParty(sales || [], await db.customerCollections.toArray(), 'customerId');
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Brick ERP';
   workbook.created = new Date();
@@ -149,7 +163,7 @@ export async function exportSalesLedgerExcel(sales, customersById) {
  * Exports the Purchase Ledger / Payables as an Excel workbook.
  */
 export async function exportPurchaseLedgerExcel(purchases, suppliersById, materialsById) {
-  const safePurchases = purchases || [];
+  const safePurchases = settleByParty(purchases || [], await db.supplierPayments.toArray(), 'supplierId');
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Purchase Ledger', {
     views: [{ state: 'frozen', ySplit: 1 }],
@@ -180,7 +194,7 @@ export async function exportPurchaseLedgerExcel(purchases, suppliersById, materi
       totalAmount: p.totalAmount,
       amountPaid: p.amountPaid,
       balanceDue: p.balanceDue,
-      status: p.paymentStatus.toUpperCase(),
+      status: (p.paymentStatus || '').toUpperCase(),
       aging,
     });
 

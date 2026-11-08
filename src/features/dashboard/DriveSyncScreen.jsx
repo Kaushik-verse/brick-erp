@@ -44,7 +44,7 @@ function fileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const KIND_LABEL = { auto: 'Daily', monthly: 'Monthly (kept forever)', safety: 'Safety copy', manual: 'Manual', drive: 'Drive' };
+const KIND_LABEL = { auto: 'Daily', monthly: 'Monthly', safety: 'Safety copy', manual: 'Manual', drive: 'Drive' };
 
 export default function DriveSyncScreen({ onBack }) {
   const pushToast = useUIStore((s) => s.pushToast);

@@ -2,6 +2,7 @@ import Icon3D from './icons3d/Icon3D';
 
 // Same clay icons as the rest of the app; the selected one holds its "active" pose.
 const NAV_3D = { home: 'home', sales: 'new-sale', production: 'factory', stock: 'brick-stack', insights: 'insights' };
+import { useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import { useT } from '../core/i18n';
 
@@ -14,10 +15,66 @@ export const TABS_V3 = [
 ];
 
 /** Five large tabs with clear labels — easier to hit and read than six. */
+/** Text fields that bring up the on-screen keyboard. */
+const TYPING = 'input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=file]), textarea, select, [contenteditable="true"]';
+
+/**
+ * Keeps two things right on every phone, whatever its text size or safe area:
+ *  • --nav-h on <html> = the bar's real height, so pinned bars (the Sale screen's
+ *    Save / PDF / Share) sit exactly above it instead of underneath it;
+ *  • html.kb-open while typing, which hides the bar so the keyboard plus the bar
+ *    never cover a form's buttons.
+ */
+function useNavMetrics(ref) {
+  useEffect(() => {
+    const root = document.documentElement;
+    const el = ref.current;
+    const publish = () => {
+      const hidden = root.classList.contains('kb-open') || window.innerWidth >= 768;
+      root.style.setProperty('--nav-h', `${hidden || !el ? 0 : Math.ceil(el.getBoundingClientRect().height)}px`);
+    };
+    const ro = 'ResizeObserver' in window ? new ResizeObserver(publish) : null;
+    if (el && ro) ro.observe(el);
+    let blurTimer;
+    const onFocusIn = (e) => {
+      if (!e.target.matches?.(TYPING)) return;
+      clearTimeout(blurTimer);
+      root.classList.add('kb-open');
+      publish();
+    };
+    // Wait a moment: moving from one field to the next blurs then focuses.
+    const onFocusOut = () => {
+      clearTimeout(blurTimer);
+      blurTimer = setTimeout(() => {
+        if (document.activeElement?.matches?.(TYPING)) return;
+        root.classList.remove('kb-open');
+        publish();
+      }, 120);
+    };
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
+    window.addEventListener('resize', publish);
+    publish();
+    // Web fonts arriving can change the bar's height.
+    document.fonts?.ready?.then(publish).catch(() => {});
+    return () => {
+      ro?.disconnect();
+      clearTimeout(blurTimer);
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
+      window.removeEventListener('resize', publish);
+      root.classList.remove('kb-open');
+      root.style.removeProperty('--nav-h');
+    };
+  }, [ref]);
+}
+
 export default function BottomNavV3({ active, onChange }) {
   const { t } = useT();
+  const ref = useRef(null);
+  useNavMetrics(ref);
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 pb-safe md:top-0 md:right-auto md:w-64 md:pb-0">
+    <nav ref={ref} className="bottom-nav fixed bottom-0 left-0 right-0 z-40 pb-safe md:top-0 md:right-auto md:w-64 md:pb-0">
       <div className="bg-kiln-800 border-t border-glass-border shadow-[0_-4px_20px_-8px_rgba(60,40,20,0.18)] md:h-full md:border-t-0 md:border-r md:pt-8">
         <div className="hidden md:block px-6 mb-6">
           <p className="text-lg font-display font-semibold text-clay-50">Factory Book</p>
