@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Save, Send, Printer, UserPlus, Banknote, Landmark, Smartphone, FileCheck2 } from 'lucide-react';
+import { Plus, Trash2, Save, Send, Printer, UserPlus, Banknote, Landmark, Smartphone, FileCheck2, ChevronDown } from 'lucide-react';
 import ScreenHeader from '../../core/ui/ScreenHeader';
 import GlassCard from '../../core/ui/GlassCard';
 import GlassButton from '../../core/ui/GlassButton';
@@ -67,6 +67,8 @@ export default function InvoiceBuilderScreen({ onBack }) {
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [remarks, setRemarks] = useState('');
   const [saving, setSaving] = useState(false);
+  // Extra charges, vehicle number and remarks are rarely used: kept in a closed section at the bottom.
+  const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
     loadBillingProfile().then(setProfile).catch(() => {});
@@ -235,6 +237,14 @@ export default function InvoiceBuilderScreen({ onBack }) {
     inv?.showOtherCharges !== false && ['Other', other, setOther],
   ].filter(Boolean);
 
+  const moreSummary = [
+    ...chargeFields.filter(([, value]) => Number(value) > 0).map(([label, value]) => `${label} ${formatINR(Number(value))}`),
+    vehicleNumber.trim() && vehicleNumber.trim().toUpperCase(),
+    remarks.trim() && `“${remarks.trim()}”`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
     <div className="pb-56 md:pb-40 md:pt-6">
       <ScreenHeader
@@ -366,18 +376,6 @@ export default function InvoiceBuilderScreen({ onBack }) {
           )}
         </GlassCard>
 
-        {/* Charges */}
-        {chargeFields.length > 0 && (
-          <GlassCard padding="p-4">
-            <h3 className="text-xs font-semibold text-clay-300 uppercase tracking-wide mb-3">Extra Charges</h3>
-            <div className="grid grid-cols-2 gap-3">
-              {chargeFields.map(([label, value, set]) => (
-                <GlassInput key={label} label={label} type="number" inputMode="decimal" prefix="₹" min="0" value={value} onChange={(e) => set(e.target.value)} />
-              ))}
-            </div>
-          </GlassCard>
-        )}
-
         {/* Totals */}
         <GlassCard padding="p-4">
           <div className="space-y-1.5 text-sm">
@@ -457,12 +455,40 @@ export default function InvoiceBuilderScreen({ onBack }) {
           </div>
         </GlassCard>
 
-        {/* Delivery */}
-        <GlassCard padding="p-4 space-y-3">
-          {inv?.showVehicleNumber !== false && (
-            <GlassInput label="Vehicle Number" value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value)} placeholder="AP 37 AB 1234" />
+        {/* More details: rarely used, so closed by default. The header lists what is filled in. */}
+        <GlassCard padding="p-0">
+          <button
+            type="button"
+            onClick={() => setMoreOpen((o) => !o)}
+            aria-expanded={moreOpen}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left touch-manipulation"
+          >
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-clay-300 uppercase tracking-wide">More details (optional)</span>
+              <span className="block text-[11px] text-clay-500 truncate mt-0.5">
+                {moreSummary || 'Transport & other charges, vehicle number, remarks'}
+              </span>
+            </span>
+            <ChevronDown size={18} className={`text-clay-400 shrink-0 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {moreOpen && (
+            <div className="px-4 pb-4 space-y-3">
+              {chargeFields.length > 0 && (
+                <div>
+                  <h3 className="text-[11px] font-semibold text-clay-400 uppercase tracking-wide mb-2">Extra Charges</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {chargeFields.map(([label, value, set]) => (
+                      <GlassInput key={label} label={label} type="number" inputMode="decimal" prefix="₹" min="0" value={value} onChange={(e) => set(e.target.value)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {inv?.showVehicleNumber !== false && (
+                <GlassInput label="Vehicle Number" value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value)} placeholder="AP 37 AB 1234" />
+              )}
+              <GlassInput label="Remarks (printed on bill)" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Optional" />
+            </div>
           )}
-          <GlassInput label="Remarks (printed on bill)" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Optional" />
         </GlassCard>
       </div>
 
