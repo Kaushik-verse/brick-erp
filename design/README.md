@@ -1,36 +1,34 @@
-# Factory Book: visual assets
+# Design sources
 
-All assets are original, drawn for Brick ERP with the skills installed in
-`.claude/skills/`. They are used only by the **New app** (`npm run dev:new`);
-the Classic app is unchanged.
+Sources for Factory Book's artwork. How to *use* the design system (tokens, components,
+rules) is in the skill: [`.claude/skills/factory-book-design/SKILL.md`](../.claude/skills/factory-book-design/SKILL.md).
 
-| Asset | Made with | Source | Used in the app |
-|---|---|---|---|
-| 30 rich 3D clay icons (brick sizes, press, factory, silo, materials, finance, actions) | **Kubai Icons** method and engine | `src/v3/icons3d/brickIcons.js` | `<Icon3D name="…"/>`: bottom bar, Home cards, Today, More tiles, Stock, Production, Insights |
-| 4 isometric scenes (press line, stock yard, delivery lorry, sales counter) | **Anatomy** iso kit + lathe | `design/illustrations/build.mjs` | `<Illustration name="…"/>`: Production, Stock, Insights, loading screen |
-| Animated material bins | SVG + **SVG Creator** lighting rules | `src/v3/IsoBin.jsx` | Stock |
-
-Three icons (`settings`, `notifications`, `home`) are Kubai's own examples. Its
-licence allows using them inside products.
+| Folder | What | Output used by the app |
+|---|---|---|
+| `brick-icons/` | gallery and checker for the 30 clay 3D icons (Kubai method) | definitions live in `src/factory-book/icons3d/brickIcons.js` |
+| `illustrations/` | builder for the 4 isometric scenes (Anatomy kit) + SVG previews | `src/factory-book/illustrations/scenes.js` |
+| `app-icon/` | Factory Book launcher icon art and renderer; classic icon source | `android/app/src/newdesign/res/mipmap-*` |
 
 ## Regenerate
 
 ```bash
-node design/brick-icons/sync.mjs && node design/brick-icons/scripts/check.mjs --out design/brick-icons/check-out   # icon screenshots
-node design/illustrations/build.mjs      # isometric scenes → src/v3/illustrations/scenes.js
+# 3D icons: copy the app's definitions into the gallery, then render check sheets
+node design/brick-icons/sync.mjs
+node design/brick-icons/scripts/check.mjs --out design/brick-icons/check-out
+
+# Isometric scenes → src/factory-book/illustrations/scenes.js (+ previews here)
+node design/illustrations/build.mjs
+
+# Launcher icons for every density (needs Google Chrome)
+node design/app-icon/render.mjs
 ```
 
-Motion: icons play their own movement on hover (mouse) or tap (touch), 460 ms
-ease-out. Scenes loop gently and only while visible. Everything is still for
-users who turn on "reduce motion" on their phone.
-
-## Going back to the previous version
-
-A full copy of the code from before this redesign is kept in
-`.checkpoints/checkpoint-before-3d/`, which git ignores. Ask Claude to "revert
-the 3D redesign" and it will restore that copy.
+The scene builder imports the Anatomy kit from
+`.claude/skills/factory-book-design/vendor/anatomy-kit/`, so it works on a fresh clone.
 
 ## Licences
 
-Kubai engine: `src/v3/icons3d/engine.js` keeps its copyright notice; the licence
-is in `src/v3/icons3d/KUBAI-LICENSE`. Anatomy kit: MIT. SVG Creator: Apache-2.0.
+All artwork is original to this project. Kubai engine: `src/factory-book/icons3d/engine.js`
+keeps its copyright notice, licence in `src/factory-book/icons3d/KUBAI-LICENSE`; the
+`settings`, `notifications` and `home` icons are Kubai's own examples, allowed in products.
+Anatomy kit: MIT (`vendor/anatomy-kit/LICENSE` in the skill). SVG Creator lighting rules: Apache-2.0.

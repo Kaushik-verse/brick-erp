@@ -46,7 +46,7 @@ function prefetchSubScreens() {
 import { seedDatabaseIfEmpty, db } from '../core/db/schema';
 import { validateSnapshot, restoreDatabaseSnapshot } from '../core/backup/snapshot';
 
-// Optional: a backup bundled into this build (src/v3/seed/*.json, git-ignored).
+// Optional: a backup bundled into this build (src/factory-book/seed/*.json, git-ignored).
 // It is restored ONCE, on the very first launch, if the phone has no data yet,
 // so the owner can try the new design with his real records immediately.
 const SEED_FILES = import.meta.glob('./seed/*.json');

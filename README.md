@@ -1,68 +1,73 @@
-# Brick ERP (Jaya Vasavi Industries)
+# Brick ERP / Factory Book
 
-A fully responsive, offline-first Enterprise Resource Planning (ERP) application designed specifically for Brick Manufacturing factories. Built with React, Vite, Tailwind CSS, and Capacitor.
+An offline-first ledger app for a fly-ash brick factory: sales and bills, payments,
+purchases, production with recipes, stock, expenses, cash & bank day book, insights and
+automatic backups. React + Vite + Tailwind + Dexie (IndexedDB), packaged for Android with
+Capacitor. No server: data lives on the phone and is backed up to phone storage and the
+owner's Google Drive.
 
-## Core Features
-- **Offline-First**: Uses local Dexie.js database to operate completely offline without an internet connection.
-- **Cross-Platform**: Runs beautifully as a Mobile Android App and as a fully responsive Desktop Web App.
-- **Automatic Backups (v2)**: Every change is backed up within about a minute to phone storage (`Documents/BrickERP/Backups`, survives uninstall) and, once connected, to a private Google Drive folder. 30 days of history, safety copies before every restore or reset. See [UPGRADE_GUIDE.md](UPGRADE_GUIDE.md).
-- **Production Engine**: Track raw material consumption and finished brick production based on exact recipes (fractional calculations supported).
-- **Smart Invoicing**: Generate professional PDF invoices (Statements and individual Bills) with customizable branding, terms, and QR codes.
-- **Sales & Receivables**: Manage customer ledgers, handle split payments (Cash, Bank, UPI, Credit), and track outstanding balances.
-- **Purchases & Payables**: Manage supplier ledgers and inventory.
-- **Expense Tracking**: Log and categorize daily factory expenses (Fuel, Maintenance, Labour, etc.) with automated dashboard deductions.
-- **WhatsApp Integration**: Send one-click payment reminders and PDF invoices directly via WhatsApp.
+One codebase builds **two separate Android apps** that can be installed side by side:
 
-## Dashboard Metrics Explained
-The ERP features a real-time dashboard to give a bird's-eye view of the factory's financial health:
-- **Net Money In**: All money received minus all money paid out this month, for cash and bank/UPI together.
-- **Cash In / Cash Out**: Money received or paid in cash.
-- **Bank / UPI In / Out**: Money received or paid by bank transfer, UPI or cheque.
-- **Total Sales**: The total bill value of all bricks sold this month (including unpaid credit sales).
-- **Collected**: The total amount of money actually received from customers this month.
-- **Receivables**: Money that customers still owe the factory (outstanding balances).
-- **Payables**: Money owed to suppliers for raw materials.
-- **Bricks Produced**: The total number of bricks manufactured in the factory this month.
-- **Gross Margin**: Sales minus the production cost of the bricks actually sold this month.
-- **Profit (est.)**: Gross margin minus this month's expenses.
-- **Finished Stock Value**: The estimated total worth of all the ready-to-sell bricks currently in the factory yard.
+| App | Look | Package | Build |
+|---|---|---|---|
+| **Factory Book** (current) | light "fired clay" design, 3D icons, isometric scenes, Telugu mode, Insights | `com.brickworks.erp.newdesign` | `npm run android:build:new` → `apk/FactoryBook.apk` |
+| **Brick ERP** (classic) | original dark design | `com.brickworks.erp` | `npm run android:build:classic` → `apk/BrickERP-Classic.apk` |
 
-## Application Pages & Navigation
-- **Dashboard (`/`)**: The main landing screen with KPI cards, net cash position, production charts, and aging alerts.
-- **Sales & Customers (`/sales`)**: Manage all customer accounts, view outstanding balances, record new sales, and generate customer ledger statements.
-- **Purchases & Suppliers (`/purchases`)**: Manage supplier accounts, record raw material purchases, and track supplier payables.
-- **Production (`/production`)**: Log daily brick production, automatically consume raw materials based on recipes, and track per-brick manufacturing costs (including labour).
-- **Inventory (`/inventory`)**: Monitor real-time stock levels of Raw Materials (Fly Ash, Lime, Gypsum, Quarry Dust) and Finished Stock (4-inch, 8-inch, 9-inch bricks).
-- **Expenses (`/expenses`)**: Record daily cash leakage and operational costs (Machinery Repair, Fuel, General Charges). Includes deletion support.
-- **Invoice Builder (`/invoice-builder`)**: A dedicated screen to construct detailed professional invoices, add transport/loading charges, and export as PDF.
-- **More / Settings (`/more`)**: Access system configuration.
-  - **Backup & Restore**: Backup status, Back Up Now, Google Drive history, phone restore points, export/restore file.
-  - **Master Settings (`/settings`)**: Configure factory details, bank accounts, and invoice toggles (e.g., show/hide transport charges, QR codes).
-  - **Recipe Management (`/recipes`)**: Define the exact raw material quantities required to manufacture a single brick of each size.
+## Quick start
 
-## Development Setup
-
-### Install Dependencies
 ```bash
 npm install
+npm run dev:new        # Factory Book in the browser → http://localhost:5174
+npm run dev            # classic app → http://localhost:5173
+npm run build:new      # production web build of Factory Book (dist/)
 ```
 
-### Run Locally (Web)
-```bash
-npm run dev
+Android builds need the Android SDK and sign with this machine's debug keystore, so
+updates must be built on the same machine as the installed app (see
+[docs/upgrade-guide.md](docs/upgrade-guide.md)).
+
+## Project structure
+
+```
+src/
+  main.jsx               picks the app: VITE_APP_VARIANT=new → Factory Book, else classic
+  App.jsx                classic Brick ERP shell
+  factory-book/          Factory Book shell and screens (AppV3, Home, Production, Stock,
+                         Insights, More), 3D icons (icons3d/), isometric scenes
+                         (illustrations/), material bins (IsoBin), one-time data fixes (fixes/)
+  features/              screens and forms shared by both apps (sales, purchases,
+                         expenses, passbook, documents, settings …)
+  core/
+    db/                  Dexie schema, ledger and recipe engines, KPIs
+    backup/  drive/      automatic phone + Google Drive backups, restore, snapshots
+    billing/             invoice maths and numbers, party ledgers, PDFs/messages data
+    insights/            business tips for the Insights tab
+    hooks/  store/  ui/  utils/   shared hooks, state, UI components, helpers
+    i18n.js              English + Telugu text
+    appVariant.js        names that differ per app (backup folders, Drive file names)
+design/                  sources for the artwork (icons, isometric scenes, app icon)
+android/                 Capacitor Android project, home-screen widgets
+docs/                    owner-facing guides
+.claude/skills/factory-book-design/   the design system as a reusable skill
 ```
 
-### Build for Production (Web)
-```bash
-npm run build
-```
+## Design system
 
-### Build for Android (Capacitor)
-```bash
-npm run android:build
-```
-Open Android Studio to compile the APK, or run:
-```bash
-cd android
-./gradlew assembleDebug
-```
+Everything about the look — tokens, components, 3D clay icons, isometric scenes, bins,
+motion and performance rules, Telugu copy, widgets, app icon — is documented in the
+**`factory-book-design`** skill: [`.claude/skills/factory-book-design/SKILL.md`](.claude/skills/factory-book-design/SKILL.md).
+Claude Code loads it automatically in this repo; people can read it as plain Markdown.
+Asset sources and regeneration commands are in [design/README.md](design/README.md).
+
+## Data safety
+
+- Automatic backup about a minute after every change and whenever the app is closed:
+  phone storage (`Documents/FactoryBook/Backups`, survives uninstall) and, once
+  connected, a private Google Drive app folder.
+- 30 daily copies plus **one copy per month kept forever**; a safety copy before every
+  restore or reset.
+- Each app uses its own folder and Drive file names, so the two apps never overwrite each
+  other's backups.
+- Real backups and bundled seed data are git-ignored (`*Backup*.json`, `src/factory-book/seed/`).
+
+See [docs/upgrade-guide.md](docs/upgrade-guide.md) for installing updates without losing data.

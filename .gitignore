@@ -17,10 +17,13 @@ BrickERP_*.json
 apk/
 .checkpoints/
 # Real business data bundled into the New app APK — never commit
-src/v3/seed/
+src/factory-book/seed/
 FactoryBook_*.json
 
 # Local tooling and private files (not app code)
-.claude/skills/
+# Third-party skills are installed locally; only the project's own design skill is shared.
+.claude/skills/*
+!.claude/skills/factory-book-design/
+.impeccable/
 Nanna_*.docx
 design/brick-icons/check-out/

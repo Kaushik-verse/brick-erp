@@ -12,7 +12,7 @@ bootstrapNativeShell();
  * VITE_APP_VARIANT is fixed at build time, so each build only contains its own app.
  */
 const loadApp =
-  import.meta.env.VITE_APP_VARIANT === 'new' ? () => import('./v3/AppV3') : () => import('./App');
+  import.meta.env.VITE_APP_VARIANT === 'new' ? () => import('./factory-book/AppV3') : () => import('./App');
 
 loadApp().then(({ default: App }) => {
   ReactDOM.createRoot(document.getElementById('root')).render(

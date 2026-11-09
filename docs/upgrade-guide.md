@@ -42,12 +42,12 @@ The data lives **inside the app** on the phone. Uninstalling the app deletes it.
 
 | Where | When | Survives |
 |---|---|---|
-| Phone storage: `Documents/BrickERP/Backups` | About 1 minute after every change, and whenever the app is closed | App crash, app data cleared, app uninstalled |
+| Phone storage: `Documents/BrickERP/Backups` (classic) or `Documents/FactoryBook/Backups` (Factory Book) | About 1 minute after every change, and whenever the app is closed | App crash, app data cleared, app uninstalled |
 | Google Drive (private, hidden app folder) | Same as above, when internet is available | Phone lost, broken or stolen |
 | Safety copy | Before every restore, factory reset or Excel import | Mistakes ("I restored the wrong file") |
 
-- 30 days of daily backups are kept on the phone **and** on Drive. If someone
-  enters wrong data, you can go back to any day.
+- 30 days of daily backups **plus one backup for every month, kept forever**, on the
+  phone **and** on Drive. If someone enters wrong data, you can go back to any day or month.
 - The dashboard shows a green **Data backed up** line. If it turns orange
   ("Backup needs attention"), open it to see why. Usually it means no internet
   or the Google sign-in expired; tap **Back Up Now** or reconnect.
@@ -85,7 +85,6 @@ keeps its own data, so Dad's daily app is never affected.
 **To try it with Dad's real data:**
 1. In the classic app: More → Backup & Restore → **Export file**.
 2. Install `FactoryBook.apk`, open it: More (grid icon on Home) → Backup & Restore → **Restore file**.
-3. Insights → **Fix Quarry Dust**: count the loads in the yard and enter them.
 
 Entries made in one app do **not** appear in the other. Pick one app for daily
 work. To switch for good, export from the old app and restore into the new one.
